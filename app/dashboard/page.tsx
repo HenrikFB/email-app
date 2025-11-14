@@ -1,8 +1,12 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { getConfigurations } from './actions'
+import { getEmailConnections } from './email-connections/actions'
 import ConfigForm from './components/config-form'
 import ConfigCard from './components/config-card'
+import EmailConnectionCard from './components/email-connection-card'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 async function ConfigurationsList() {
   const configurations = await getConfigurations()
@@ -29,6 +33,41 @@ async function ConfigurationsList() {
   )
 }
 
+async function EmailConnectionsList() {
+  const connections = await getEmailConnections()
+
+  if (connections.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>No email accounts connected</CardTitle>
+          <CardDescription>
+            Connect your email account to start analyzing emails
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/api/aurinko/auth">
+            <Button>Connect Email Account</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {connections.map((connection) => (
+        <EmailConnectionCard key={connection.id} connection={connection} />
+      ))}
+      <Link href="/api/aurinko/auth">
+        <Button variant="outline" className="w-full">
+          Connect Another Email Account
+        </Button>
+      </Link>
+    </div>
+  )
+}
+
 function LoadingSkeleton() {
   return (
     <div className="space-y-4">
@@ -49,13 +88,23 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Agent Configurations</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Manage your email monitoring and analysis configurations
+          Manage your email connections and analysis configurations
         </p>
       </div>
 
-      <ConfigForm />
+      <div>
+        <h2 className="mb-4 text-2xl font-semibold tracking-tight">Email Connections</h2>
+        <Suspense fallback={<LoadingSkeleton />}>
+          <EmailConnectionsList />
+        </Suspense>
+      </div>
+
+      <div>
+        <h2 className="mb-4 text-2xl font-semibold tracking-tight">Agent Configurations</h2>
+        <ConfigForm />
+      </div>
 
       <div>
         <h2 className="mb-4 text-2xl font-semibold tracking-tight">Your Configurations</h2>

@@ -10,6 +10,11 @@ Create a `.env.local` file in the root directory of the project with the followi
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+# Aurinko Email API Configuration
+AURINKO_CLIENT_ID=your-aurinko-client-id
+AURINKO_CLIENT_SECRET=your-aurinko-client-secret
+AURINKO_REDIRECT_URI=http://localhost:3000/api/aurinko/callback
 ```
 
 ## How to Get These Values

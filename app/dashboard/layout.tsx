@@ -29,10 +29,21 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center">
-          <div className="mr-4 flex">
-            <Link href="/dashboard" className="mr-6 flex items-center space-x-2">
+          <div className="mr-4 flex items-center space-x-6">
+            <Link href="/dashboard" className="flex items-center space-x-2">
               <span className="font-bold">Agent Config</span>
             </Link>
+            <nav className="flex items-center space-x-4 text-sm">
+              <Link href="/dashboard" className="transition-colors hover:text-foreground/80">
+                Dashboard
+              </Link>
+              <Link href="/dashboard/emails" className="transition-colors hover:text-foreground/80">
+                Browse Emails
+              </Link>
+              <Link href="/dashboard/results" className="transition-colors hover:text-foreground/80">
+                Results
+              </Link>
+            </nav>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
             <span className="text-sm text-muted-foreground">{user.email}</span>
