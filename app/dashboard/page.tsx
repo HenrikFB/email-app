@@ -46,7 +46,7 @@ async function EmailConnectionsList() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/api/aurinko/auth">
+          <Link href="/api/microsoft/auth">
             <Button>Connect Email Account</Button>
           </Link>
         </CardContent>
@@ -59,7 +59,7 @@ async function EmailConnectionsList() {
       {connections.map((connection) => (
         <EmailConnectionCard key={connection.id} connection={connection} />
       ))}
-      <Link href="/api/aurinko/auth">
+      <Link href="/api/microsoft/auth">
         <Button variant="outline" className="w-full">
           Connect Another Email Account
         </Button>

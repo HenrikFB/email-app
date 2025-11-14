@@ -11,7 +11,7 @@ import { EmailsDataTable } from './data-table'
 import { getEmailsFromConnection, analyzeSelectedEmails } from './actions'
 import { getEmailConnections } from '../email-connections/actions'
 import { getConfigurations } from '../actions'
-import type { AurinkoEmail } from '@/lib/aurinko/client'
+import type { Email } from '@/lib/microsoft-graph/client'
 import type { EmailConnection } from '../email-connections/actions'
 import type { AgentConfiguration } from '../actions'
 
@@ -23,7 +23,7 @@ export default function EmailBrowserPage() {
   const [agentConfigs, setAgentConfigs] = useState<AgentConfiguration[]>([])
   const [selectedConnection, setSelectedConnection] = useState<string>(connectionIdParam || '')
   const [selectedConfig, setSelectedConfig] = useState<string>('')
-  const [emails, setEmails] = useState<AurinkoEmail[]>([])
+  const [emails, setEmails] = useState<Email[]>([])
   const [selectedEmails, setSelectedEmails] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -137,7 +137,7 @@ export default function EmailBrowserPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => window.location.href = '/api/aurinko/auth'}>
+            <Button onClick={() => window.location.href = '/api/microsoft/auth'}>
               Connect Email Account
             </Button>
           </CardContent>

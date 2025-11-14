@@ -1,13 +1,13 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { fetchEmails, getEmailById, type EmailFetchOptions, type AurinkoEmail } from '@/lib/aurinko/client'
+import { fetchEmails, getEmailById, type EmailFetchOptions, type Email } from '@/lib/microsoft-graph/client'
 import { revalidatePath } from 'next/cache'
 
 export async function getEmailsFromConnection(
   connectionId: string,
   filters: EmailFetchOptions
-): Promise<{ emails: AurinkoEmail[]; nextPageToken?: string; error?: string }> {
+): Promise<{ emails: Email[]; nextPageToken?: string; error?: string }> {
   const supabase = await createClient()
 
   const {
@@ -31,8 +31,27 @@ export async function getEmailsFromConnection(
   }
 
   try {
-    // Fetch emails from Aurinko
-    const result = await fetchEmails(connection.aurinko_access_token, filters)
+    // Convert date filters to ISO format if needed
+    const graphFilters: EmailFetchOptions = { ...filters }
+    
+    // Microsoft Graph expects ISO date strings
+    if (filters.after && !filters.after.includes('T')) {
+      // Convert YYYY/MM/DD to ISO format
+      const [year, month, day] = filters.after.split('/')
+      graphFilters.after = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`
+    }
+    if (filters.before && !filters.before.includes('T')) {
+      const [year, month, day] = filters.before.split('/')
+      graphFilters.before = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T23:59:59Z`
+    }
+
+    // Use skipToken if provided
+    if (filters.pageToken) {
+      graphFilters.skipToken = filters.pageToken
+    }
+
+    // Fetch emails from Microsoft Graph
+    const result = await fetchEmails(connection.aurinko_access_token, graphFilters)
     
     return {
       emails: result.records,

@@ -21,10 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { AurinkoEmail } from '@/lib/aurinko/client'
+import type { Email } from '@/lib/microsoft-graph/client'
 
 interface EmailsDataTableProps {
-  emails: AurinkoEmail[]
+  emails: Email[]
   selectedEmails: string[]
   onSelectionChange: (selected: string[]) => void
 }
@@ -32,7 +32,7 @@ interface EmailsDataTableProps {
 export function EmailsDataTable({ emails, selectedEmails, onSelectionChange }: EmailsDataTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
 
-  const columns: ColumnDef<AurinkoEmail>[] = [
+  const columns: ColumnDef<Email>[] = [
     {
       id: 'select',
       header: ({ table }) => (

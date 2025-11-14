@@ -8,7 +8,7 @@ export type EmailConnection = {
   user_id: string
   email_address: string
   provider: string
-  aurinko_account_id: string
+  account_id: string
   is_active: boolean
   last_sync_at: string | null
   created_at: string
@@ -28,7 +28,7 @@ export async function getEmailConnections(): Promise<EmailConnection[]> {
 
   const { data, error } = await supabase
     .from('email_connections')
-    .select('id, user_id, email_address, provider, aurinko_account_id, is_active, last_sync_at, created_at, updated_at')
+    .select('id, user_id, email_address, provider, account_id, is_active, last_sync_at, created_at, updated_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 

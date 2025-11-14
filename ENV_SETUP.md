@@ -11,10 +11,10 @@ Create a `.env.local` file in the root directory of the project with the followi
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
-# Aurinko Email API Configuration
-AURINKO_CLIENT_ID=your-aurinko-client-id
-AURINKO_CLIENT_SECRET=your-aurinko-client-secret
-AURINKO_REDIRECT_URI=http://localhost:3000/api/aurinko/callback
+# Microsoft Graph API Configuration
+MICROSOFT_CLIENT_ID=your-azure-app-client-id
+MICROSOFT_CLIENT_SECRET=your-azure-app-client-secret
+MICROSOFT_REDIRECT_URI=http://localhost:3000/api/microsoft/callback
 ```
 
 ## How to Get These Values
@@ -32,11 +32,42 @@ AURINKO_REDIRECT_URI=http://localhost:3000/api/aurinko/callback
 2. Find the **Project API keys** section
 3. Copy the **anon** / **public** key (it's a long string of characters)
 
+### 3. MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET
+
+1. Go to [Azure Portal](https://portal.azure.com/)
+2. Navigate to **Azure Active Directory** > **App registrations**
+3. Click **New registration**
+4. Fill in:
+   - **Name**: Your app name (e.g., "Email Agent Config")
+   - **Supported account types**: Select "Accounts in any organizational directory and personal Microsoft accounts"
+   - **Redirect URI**: `http://localhost:3000/api/microsoft/callback` (Web platform)
+5. Click **Register**
+6. After registration:
+   - Copy the **Application (client) ID** → This is your `MICROSOFT_CLIENT_ID`
+   - Go to **Certificates & secrets** > **New client secret**
+   - Add description and expiration, click **Add**
+   - **Copy the secret value immediately** → This is your `MICROSOFT_CLIENT_SECRET` (you won't see it again!)
+7. Go to **API permissions** > **Add a permission** > **Microsoft Graph** > **Delegated permissions**
+8. Add these permissions:
+   - `Mail.Read`
+   - `offline_access`
+   - `openid`
+   - `profile`
+   - `email`
+9. Click **Add permissions**
+10. **Important**: No admin consent needed for personal Microsoft accounts!
+
 ## Example .env.local File
 
 ```env
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://abcdefghijklmnop.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFiY2RlZmdoaWprbG1ub3AiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYzMDQ0ODQwNSwiZXhwIjoxOTQ2MDI0NDA1fQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Microsoft Graph
+MICROSOFT_CLIENT_ID=12345678-1234-1234-1234-123456789abc
+MICROSOFT_CLIENT_SECRET=abc~def~ghi~jkl~mno~pqr~stu~vwx~yz
+MICROSOFT_REDIRECT_URI=http://localhost:3000/api/microsoft/callback
 ```
 
 ## Important Notes
