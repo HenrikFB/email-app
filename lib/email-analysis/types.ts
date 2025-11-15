@@ -32,6 +32,14 @@ export interface ExtractedLink {
   isButton: boolean
 }
 
+/**
+ * Scraping strategy for link processing
+ * - two-pass: Quick match check, then scrape if matched (saves credits)
+ * - single-pass: Always scrape all links (for future use)
+ * - smart-select: AI picks most relevant links to scrape (future feature)
+ */
+export type ScrapingStrategy = 'two-pass' | 'single-pass' | 'smart-select'
+
 export interface AnalysisJobInput {
   emailId: string
   accessToken: string
@@ -39,6 +47,7 @@ export interface AnalysisJobInput {
     match_criteria: string
     extraction_fields: string
     follow_links: boolean
+    scraping_strategy?: ScrapingStrategy // Optional, defaults to 'two-pass'
   }
 }
 
@@ -48,8 +57,10 @@ export interface AnalysisJobResult {
   matched: boolean
   extractedData: Record<string, any>
   scrapedUrls: string[]
+  allLinksFound: string[]  // All URLs found in email (both scraped and not)
+  emailHtmlBody: string    // Original email HTML for debugging
+  reasoning: string        // AI explanation (required now, not optional)
+  confidence: number       // AI confidence score (required now, not optional)
   error?: string
-  reasoning?: string
-  confidence?: number
 }
 

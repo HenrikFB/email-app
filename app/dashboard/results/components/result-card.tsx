@@ -4,7 +4,20 @@ import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { runAnalysis } from '../actions'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 
 interface ResultCardProps {
   result: {
@@ -19,6 +32,11 @@ interface ResultCardProps {
     analysis_status: string
     error_message: string | null
     scraped_urls: string[] | null
+    all_links_found: string[] | null
+    email_html_body: string | null
+    reasoning: string | null
+    confidence: number | null
+    analyzed_at: string | null
     agent_configurations: {
       email_address: string
       match_criteria: string | null
@@ -28,8 +46,8 @@ interface ResultCardProps {
 }
 
 export default function ResultCard({ result }: ResultCardProps) {
-  const [analyzing, setAnalyzing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [showExtractedData, setShowExtractedData] = useState(false)
+  const [showRawData, setShowRawData] = useState(false)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -44,21 +62,27 @@ export default function ResultCard({ result }: ResultCardProps) {
     }
   }
 
-  const handleAnalyze = async () => {
-    setAnalyzing(true)
-    setError(null)
-
-    const response = await runAnalysis(result.id)
-
-    if (!response.success) {
-      setError(response.error || 'Failed to analyze email')
-    }
-
-    setAnalyzing(false)
+  const getConfidenceColor = (confidence: number | null) => {
+    if (confidence === null) return 'text-gray-500'
+    if (confidence >= 0.8) return 'text-green-600'
+    if (confidence >= 0.5) return 'text-yellow-600'
+    return 'text-red-600'
   }
 
+  const getConfidenceLabel = (confidence: number | null) => {
+    if (confidence === null) return 'N/A'
+    if (confidence >= 0.8) return 'High'
+    if (confidence >= 0.5) return 'Medium'
+    return 'Low'
+  }
+
+  // Determine card border and background based on match status
+  const cardClassName = result.matched 
+    ? 'border-green-200 bg-green-50/30' 
+    : 'border-gray-200'
+
   return (
-    <Card>
+    <Card className={cardClassName}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -81,96 +105,153 @@ export default function ResultCard({ result }: ResultCardProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {result.email_snippet && (
-          <div>
-            <p className="text-sm text-muted-foreground">{result.email_snippet}</p>
-          </div>
-        )}
-
-        {result.agent_configurations && (
-          <div className="rounded-md bg-muted p-3">
-            <p className="text-sm font-medium">Agent Configuration:</p>
-            <p className="text-sm text-muted-foreground">
-              {result.agent_configurations.email_address}
-            </p>
-          </div>
-        )}
-
-        {result.analysis_status === 'completed' && result.extracted_data && (
-          <div className="space-y-3">
-            <div className="rounded-md border p-4">
-              <p className="mb-3 text-sm font-medium">Extracted Data:</p>
-              {result.extracted_data.reasoning && (
-                <div className="mb-3 rounded-md bg-muted p-2">
-                  <p className="text-xs font-medium">Reasoning:</p>
-                  <p className="text-xs text-muted-foreground">{result.extracted_data.reasoning}</p>
-                </div>
-              )}
-              {result.extracted_data.confidence !== undefined && (
-                <div className="mb-3">
-                  <p className="text-xs">
-                    Confidence: {(result.extracted_data.confidence * 100).toFixed(0)}%
-                  </p>
-                </div>
-              )}
-              <pre className="overflow-x-auto text-xs">
-                {JSON.stringify(result.extracted_data, null, 2)}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {result.analysis_status === 'pending' && (
-          <div className="space-y-3">
-            <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
-              This email is queued for analysis. Click the button below to analyze it now.
-            </div>
-            {error && (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">
-                {error}
+        {/* Reasoning - Prominent display */}
+        {result.reasoning && (
+          <div className="rounded-md border-l-4 border-blue-500 bg-blue-50 p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="mb-1 text-sm font-semibold text-blue-900">AI Reasoning</p>
+                <p className="text-sm text-blue-800">{result.reasoning}</p>
               </div>
-            )}
-            <Button 
-              onClick={handleAnalyze} 
-              disabled={analyzing}
-              className="w-full"
-            >
-              {analyzing ? 'Analyzing...' : 'Analyze Email'}
-            </Button>
+              {result.confidence !== null && (
+                <Badge 
+                  variant="outline" 
+                  className={`ml-2 ${getConfidenceColor(result.confidence)}`}
+                >
+                  {getConfidenceLabel(result.confidence)} ({(result.confidence * 100).toFixed(0)}%)
+                </Badge>
+              )}
+            </div>
           </div>
         )}
 
-        {result.analysis_status === 'analyzing' && (
-          <div className="rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
-            Analysis in progress... This may take a minute.
-          </div>
-        )}
-
+        {/* Error message */}
         {result.error_message && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">
-            Error: {result.error_message}
+            <p className="font-medium">Error:</p>
+            <p>{result.error_message}</p>
           </div>
         )}
 
-        {result.scraped_urls && result.scraped_urls.length > 0 && (
-          <div>
-            <p className="mb-2 text-sm font-medium">Scraped URLs:</p>
-            <ul className="list-inside list-disc text-sm text-muted-foreground">
-              {result.scraped_urls.map((url, index) => (
-                <li key={index}>
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    {url}
-                  </a>
-                </li>
-              ))}
-            </ul>
+        {/* Agent Configuration Reference */}
+        {result.agent_configurations && (
+          <div className="rounded-md bg-muted p-3">
+            <p className="text-xs font-medium text-muted-foreground">Agent Config: {result.agent_configurations.email_address}</p>
           </div>
         )}
+
+        {/* Extracted Data - Collapsible */}
+        {result.analysis_status === 'completed' && result.extracted_data && Object.keys(result.extracted_data).length > 0 && (
+          <Collapsible open={showExtractedData} onOpenChange={setShowExtractedData}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <span className="font-medium">Extracted Data ({Object.keys(result.extracted_data).length} fields)</span>
+                {showExtractedData ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="rounded-md border bg-white p-4">
+                <pre className="overflow-x-auto text-xs">
+                  {JSON.stringify(result.extracted_data, null, 2)}
+                </pre>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Raw Data Section - Collapsible */}
+        <Collapsible open={showRawData} onOpenChange={setShowRawData}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between text-muted-foreground">
+              <span className="text-xs">View Raw Data & Debugging Info</span>
+              {showRawData ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-3">
+            {/* Links Found */}
+            {result.all_links_found && result.all_links_found.length > 0 && (
+              <div className="rounded-md border bg-gray-50 p-3">
+                <p className="mb-2 text-xs font-medium">All Links Found ({result.all_links_found.length}):</p>
+                <ul className="space-y-1">
+                  {result.all_links_found.map((url, index) => (
+                    <li key={index} className="flex items-center gap-1 text-xs">
+                      <ExternalLink className="h-3 w-3" />
+                      <a 
+                        href={url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="truncate hover:underline"
+                      >
+                        {url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Scraped URLs */}
+            {result.scraped_urls && result.scraped_urls.length > 0 && (
+              <div className="rounded-md border bg-green-50 p-3">
+                <p className="mb-2 text-xs font-medium text-green-900">
+                  Scraped URLs ({result.scraped_urls.length}):
+                </p>
+                <ul className="space-y-1">
+                  {result.scraped_urls.map((url, index) => (
+                    <li key={index} className="flex items-center gap-1 text-xs text-green-800">
+                      <ExternalLink className="h-3 w-3" />
+                      <a 
+                        href={url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="truncate hover:underline"
+                      >
+                        {url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Email HTML Body - Modal */}
+            {result.email_html_body && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full text-xs">
+                    View Full Email HTML
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[80vh] max-w-4xl overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Email HTML Content</DialogTitle>
+                    <DialogDescription>
+                      Full email HTML body (for debugging)
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="rounded-md border bg-gray-50 p-4">
+                    <pre className="overflow-x-auto text-xs">
+                      {result.email_html_body.substring(0, 5000)}
+                      {result.email_html_body.length > 5000 && '... (truncated)'}
+                    </pre>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Email Snippet */}
+            {result.email_snippet && (
+              <div className="rounded-md border bg-gray-50 p-3">
+                <p className="mb-1 text-xs font-medium">Email Snippet:</p>
+                <p className="text-xs text-muted-foreground">{result.email_snippet}</p>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       </CardContent>
-      <CardFooter>
-        <p className="text-xs text-muted-foreground">
-          Queued: {new Date(result.email_date).toLocaleString()}
-        </p>
+      <CardFooter className="flex justify-between text-xs text-muted-foreground">
+        <span>Analyzed: {result.analyzed_at ? new Date(result.analyzed_at).toLocaleString() : 'N/A'}</span>
+        {result.has_attachments && <span>📎 Has Attachments</span>}
       </CardFooter>
     </Card>
   )

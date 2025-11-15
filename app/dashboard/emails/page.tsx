@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Progress } from '@/components/ui/progress'
 import { EmailsDataTable } from './data-table'
 import { getEmailsFromConnection, analyzeSelectedEmails } from './actions'
 import { getEmailConnections } from '../email-connections/actions'
@@ -17,6 +18,7 @@ import type { AgentConfiguration } from '../actions'
 
 export default function EmailBrowserPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const connectionIdParam = searchParams.get('connection')
 
   const [connections, setConnections] = useState<EmailConnection[]>([])
@@ -27,7 +29,9 @@ export default function EmailBrowserPage() {
   const [selectedEmails, setSelectedEmails] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeProgress, setAnalyzeProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // Filters
   const [fromFilter, setFromFilter] = useState('')
@@ -106,14 +110,35 @@ export default function EmailBrowserPage() {
     }
 
     setAnalyzing(true)
+    setAnalyzeProgress(0)
     setError(null)
+    setSuccessMessage(null)
 
     try {
+      // Note: Progress is shown via state, but actual analysis happens server-side
+      // We simulate progress for UX purposes
+      const progressInterval = setInterval(() => {
+        setAnalyzeProgress(prev => {
+          if (prev >= 90) return prev
+          return prev + 10
+        })
+      }, 500)
+
       const result = await analyzeSelectedEmails(selectedEmails, selectedConnection, selectedConfig)
       
+      clearInterval(progressInterval)
+      setAnalyzeProgress(100)
+      
       if (result.success) {
-        alert(`Successfully queued ${selectedEmails.length} email(s) for analysis!`)
+        setSuccessMessage(
+          `✅ Analyzed ${result.analyzed} email(s): ${result.matched} matched, ${result.failed} failed`
+        )
         setSelectedEmails([])
+        
+        // Redirect to results page after 2 seconds
+        setTimeout(() => {
+          router.push('/dashboard/results')
+        }, 2000)
       } else {
         setError(result.error || 'Failed to analyze emails')
       }
@@ -121,7 +146,10 @@ export default function EmailBrowserPage() {
       console.error('Error analyzing emails:', err)
       setError('Failed to analyze emails')
     } finally {
-      setAnalyzing(false)
+      setTimeout(() => {
+        setAnalyzing(false)
+        setAnalyzeProgress(0)
+      }, 2500)
     }
   }
 
@@ -264,6 +292,33 @@ export default function EmailBrowserPage() {
                 {analyzing ? 'Analyzing...' : 'Analyze Selected'}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Analysis Progress & Success Message */}
+      {analyzing && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Analyzing emails...</p>
+                <p className="text-sm text-muted-foreground">{analyzeProgress}%</p>
+              </div>
+              <Progress value={analyzeProgress} className="h-2" />
+              <p className="text-xs text-muted-foreground">
+                This may take a few minutes depending on the number of emails and whether links need to be scraped.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {successMessage && !analyzing && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-green-900">{successMessage}</p>
+            <p className="mt-1 text-xs text-green-700">Redirecting to results page...</p>
           </CardContent>
         </Card>
       )}
