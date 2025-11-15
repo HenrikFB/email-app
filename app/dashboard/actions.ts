@@ -11,6 +11,7 @@ export type AgentConfiguration = {
   extraction_fields: string | null
   analyze_attachments: boolean
   follow_links: boolean
+  button_text_pattern: string | null
   created_at: string
   updated_at: string
 }
@@ -46,6 +47,7 @@ export async function createConfiguration(formData: {
   extraction_fields: string
   analyze_attachments: boolean
   follow_links: boolean
+  button_text_pattern?: string
 }) {
   const supabase = await createClient()
 
@@ -57,7 +59,7 @@ export async function createConfiguration(formData: {
     throw new Error('Not authenticated')
   }
 
-  const { data, error } = await supabase
+  const { data, error} = await supabase
     .from('agent_configurations')
     .insert([
       {
@@ -67,6 +69,7 @@ export async function createConfiguration(formData: {
         extraction_fields: formData.extraction_fields,
         analyze_attachments: formData.analyze_attachments,
         follow_links: formData.follow_links,
+        button_text_pattern: formData.button_text_pattern || null,
       },
     ])
     .select()
@@ -89,6 +92,7 @@ export async function updateConfiguration(
     extraction_fields: string
     analyze_attachments: boolean
     follow_links: boolean
+    button_text_pattern?: string
   }
 ) {
   const supabase = await createClient()
@@ -109,6 +113,7 @@ export async function updateConfiguration(
       extraction_fields: formData.extraction_fields,
       analyze_attachments: formData.analyze_attachments,
       follow_links: formData.follow_links,
+      button_text_pattern: formData.button_text_pattern || null,
     })
     .eq('id', id)
     .eq('user_id', user.id)

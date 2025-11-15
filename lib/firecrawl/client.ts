@@ -10,6 +10,8 @@ export interface FirecrawlScrapeOptions {
   includeTags?: string[]
   excludeTags?: string[]
   timeout?: number
+  waitFor?: number  // Wait time in ms for redirects/JS (e.g., 3000)
+  maxRetries?: number  // Number of retry attempts (default: 3)
 }
 
 export interface FirecrawlScrapeResult {
@@ -26,14 +28,9 @@ export interface FirecrawlScrapeResult {
 }
 
 /**
- * Scrapes a URL using Firecrawl API
- * Automatically uses 'auto' proxy mode (retries with stealth if basic fails)
- * 
- * @param options - Scraping options
- * @returns Scraped content
- * @throws Error if scraping fails
+ * Scrapes a single URL (internal function, use scrapeWithRetry for production)
  */
-export async function scrapeUrl(
+async function scrapeUrlOnce(
   options: FirecrawlScrapeOptions
 ): Promise<FirecrawlScrapeResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY
@@ -54,9 +51,8 @@ export async function scrapeUrl(
       onlyMainContent: options.onlyMainContent ?? true,
       includeTags: options.includeTags,
       excludeTags: options.excludeTags,
-      timeout: options.timeout || 30000,
-      // Proxy defaults to 'auto' (uses stealth if basic fails)
-      // This way we don't need to specify it explicitly
+      timeout: options.timeout || 45000,  // Increased from 30s to 45s
+      waitFor: options.waitFor || 3000,   // Wait 3 seconds by default for redirects/JS
     }),
   })
 
@@ -68,7 +64,6 @@ export async function scrapeUrl(
       const errorJson = JSON.parse(errorText)
       errorMessage = `Firecrawl scrape failed: ${errorJson.error || errorJson.message || errorText}`
     } catch {
-      // If error is not JSON, use the text
       if (errorText) {
         errorMessage = `Firecrawl scrape failed: ${errorText}`
       }
@@ -89,27 +84,70 @@ export async function scrapeUrl(
 }
 
 /**
- * Scrapes multiple URLs in parallel
+ * Scrapes a URL with automatic retry on failure
+ * Implements exponential backoff: 2s, 4s, 6s between retries
+ * 
+ * @param options - Scraping options (url, formats, etc.)
+ * @returns Scraped content
+ * @throws Error if all retry attempts fail
+ */
+export async function scrapeUrl(
+  options: FirecrawlScrapeOptions
+): Promise<FirecrawlScrapeResult> {
+  const maxRetries = options.maxRetries ?? 3
+  let lastError: Error | null = null
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🌐 [${attempt}/${maxRetries}] Scraping: ${options.url}`)
+      const result = await scrapeUrlOnce(options)
+      console.log(`✅ Successfully scraped: ${options.url}`)
+      return result
+    } catch (error) {
+      lastError = error as Error
+      console.log(`⚠️  Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`)
+      
+      if (attempt < maxRetries) {
+        const delay = 2000 * attempt // Exponential backoff: 2s, 4s, 6s
+        console.log(`⏳ Waiting ${delay}ms before retry...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+  
+  console.log(`❌ Failed to scrape ${options.url} after ${maxRetries} attempts`)
+  throw lastError || new Error(`Failed to scrape after ${maxRetries} attempts`)
+}
+
+/**
+ * Scrapes multiple URLs in parallel with retry logic
  * Returns results with graceful error handling (failed scrapes are logged but don't stop others)
  * 
  * @param urls - Array of URLs to scrape
  * @param options - Scraping options (applied to all URLs)
- * @returns Array of successful scrape results
+ * @returns Array of successful scrape results with attempt tracking
  */
 export async function scrapeUrls(
   urls: string[],
   options: Omit<FirecrawlScrapeOptions, 'url'> = {}
 ): Promise<Array<FirecrawlScrapeResult & { url: string }>> {
+  console.log(`\n🌐 Starting batch scrape of ${urls.length} URLs...`)
+  
   const results = await Promise.allSettled(
     urls.map((url) => scrapeUrl({ ...options, url }))
   )
+
+  const successful = results.filter(r => r.status === 'fulfilled').length
+  const failed = results.filter(r => r.status === 'rejected').length
+  
+  console.log(`\n📊 Batch scrape complete: ${successful} successful, ${failed} failed`)
 
   return results
     .map((result, index) => {
       if (result.status === 'fulfilled') {
         return { ...result.value, url: urls[index] }
       } else {
-        console.error(`Failed to scrape ${urls[index]}:`, result.reason)
+        console.error(`❌ Final failure for ${urls[index]}:`, result.reason.message)
         return null
       }
     })

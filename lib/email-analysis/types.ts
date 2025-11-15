@@ -47,6 +47,7 @@ export interface AnalysisJobInput {
     match_criteria: string
     extraction_fields: string
     follow_links: boolean
+    button_text_pattern?: string  // Optional: boost signal for link ranking (e.g., "Se jobbet|Apply")
     scraping_strategy?: ScrapingStrategy // Optional, defaults to 'two-pass'
   }
 }

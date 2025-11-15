@@ -107,6 +107,14 @@ export default function ConfigCard({ config }: ConfigCardProps) {
               </p>
             </div>
           )}
+          {config.button_text_pattern && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Button text pattern:</p>
+              <p className="text-sm text-muted-foreground font-mono">
+                {config.button_text_pattern}
+              </p>
+            </div>
+          )}
         </div>
       </CardContent>
       <CardFooter className="flex justify-end space-x-2">

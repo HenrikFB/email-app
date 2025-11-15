@@ -21,6 +21,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [extractionFields, setExtractionFields] = useState(config?.extraction_fields || '')
   const [analyzeAttachments, setAnalyzeAttachments] = useState(config?.analyze_attachments || false)
   const [followLinks, setFollowLinks] = useState(config?.follow_links || false)
+  const [buttonTextPattern, setButtonTextPattern] = useState(config?.button_text_pattern || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,6 +37,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         extraction_fields: extractionFields,
         analyze_attachments: analyzeAttachments,
         follow_links: followLinks,
+        button_text_pattern: buttonTextPattern || undefined,
       }
 
       if (config) {
@@ -51,6 +53,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         setExtractionFields('')
         setAnalyzeAttachments(false)
         setFollowLinks(false)
+        setButtonTextPattern('')
       }
 
       onSuccess?.()
@@ -122,6 +125,20 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
             />
             <p className="text-xs text-muted-foreground">
               What information to extract if the email matches your criteria above
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="buttonTextPattern">Button Text Pattern (Optional)</Label>
+            <Input
+              id="buttonTextPattern"
+              placeholder="E.g., Se jobbet|Apply|View Job|Read More"
+              value={buttonTextPattern}
+              onChange={(e) => setButtonTextPattern(e.target.value)}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
+              Regex pattern to boost link ranking (not a filter). Use pipe | for multiple patterns. Example: "Se jobbet|Apply"
             </p>
           </div>
 

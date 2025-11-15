@@ -132,6 +132,7 @@ export async function analyzeSelectedEmails(
             match_criteria: agentConfig.match_criteria || '',
             extraction_fields: agentConfig.extraction_fields || '',
             follow_links: agentConfig.follow_links,
+            button_text_pattern: agentConfig.button_text_pattern || undefined,
             scraping_strategy: 'two-pass', // Use two-pass by default
           },
         })

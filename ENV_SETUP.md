@@ -119,3 +119,34 @@ If you see errors like "Invalid API key" or connection issues:
 3. Restart your development server after creating or modifying `.env.local`
 4. Verify your Supabase project is active and running
 
+### 6. EMAIL_ANALYSIS_DEBUG (Optional)
+
+Enable debug mode to create detailed logs for each email analysis run:
+
+```bash
+EMAIL_ANALYSIS_DEBUG=true
+```
+
+**What it does:**
+- Creates a debug folder for each analysis run
+- Logs every step (email fetching, link extraction, AI decisions, scraping, chunking, analysis)
+- Stores raw data (email HTML, plain text, links, scraped content)
+- Generates human-readable summary (SUMMARY.md)
+- Keeps last 10 runs, auto-cleans older ones
+
+**Debug folder location:** `debug-analysis-runs/{timestamp}-{emailId}/`
+
+**Files created:**
+- `SUMMARY.md` - Human-readable analysis summary
+- `00-metadata.json` - Run information
+- `01-email-plain-text.txt` - Plain text email content
+- `01-email-html.html` - Full HTML email content
+- `02-links-extracted.json` - All links found
+- `03-ai-link-prioritization.json` - AI's link selection reasoning
+- `04-scraping-complete.json` - Scraping results
+- `05-chunking-complete.json` - Content chunks
+- `06-chunk-analysis-complete.json` - Analysis of each chunk
+- `07-aggregation-complete.json` - Final aggregated results
+
+**Note:** Debug folders are automatically added to `.gitignore`
+
