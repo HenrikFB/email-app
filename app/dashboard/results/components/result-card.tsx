@@ -18,6 +18,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { deleteAnalyzedEmail } from '../actions'
 
 interface ResultCardProps {
   result: {
@@ -48,6 +49,25 @@ interface ResultCardProps {
 export default function ResultCard({ result }: ResultCardProps) {
   const [showExtractedData, setShowExtractedData] = useState(false)
   const [showRawData, setShowRawData] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const deleteResult = await deleteAnalyzedEmail(result.id)
+      if (!deleteResult.success) {
+        console.error('Failed to delete:', deleteResult.error)
+        setIsDeleting(false)
+        setShowDeleteConfirm(false)
+      }
+      // If successful, the component will be removed due to revalidatePath
+    } catch (error) {
+      console.error('Error deleting:', error)
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -80,6 +100,40 @@ export default function ResultCard({ result }: ResultCardProps) {
   const cardClassName = result.matched 
     ? 'border-green-200 bg-green-50/30' 
     : 'border-gray-200'
+
+  // Show delete confirmation dialog
+  if (showDeleteConfirm) {
+    return (
+      <Card className="border-red-200 bg-red-50/50">
+        <CardHeader>
+          <CardTitle className="text-red-900">Confirm Deletion</CardTitle>
+          <CardDescription className="text-red-700">
+            Are you sure you want to delete this analyzed email? This action cannot be undone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="font-medium text-red-900">{result.email_subject}</p>
+          <p className="text-sm text-red-800">From: {result.email_from}</p>
+        </CardContent>
+        <CardFooter className="flex justify-end space-x-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowDeleteConfirm(false)}
+            disabled={isDeleting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </CardFooter>
+      </Card>
+    )
+  }
 
   return (
     <Card className={cardClassName}>
@@ -222,7 +276,7 @@ export default function ResultCard({ result }: ResultCardProps) {
                     View Full Email HTML
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-h-[80vh] max-w-4xl overflow-y-auto">
+                    <DialogContent className="max-h-[80vh] max-w-7xl overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Email HTML Content</DialogTitle>
                     <DialogDescription>
@@ -249,9 +303,18 @@ export default function ResultCard({ result }: ResultCardProps) {
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
-      <CardFooter className="flex justify-between text-xs text-muted-foreground">
-        <span>Analyzed: {result.analyzed_at ? new Date(result.analyzed_at).toLocaleString() : 'N/A'}</span>
-        {result.has_attachments && <span>📎 Has Attachments</span>}
+      <CardFooter className="flex justify-between items-center">
+        <div className="text-xs text-muted-foreground">
+          <span>Analyzed: {result.analyzed_at ? new Date(result.analyzed_at).toLocaleString() : 'N/A'}</span>
+          {result.has_attachments && <span className="ml-2">📎 Has Attachments</span>}
+        </div>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setShowDeleteConfirm(true)}
+        >
+          Delete
+        </Button>
       </CardFooter>
     </Card>
   )

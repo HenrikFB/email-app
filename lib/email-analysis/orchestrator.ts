@@ -127,12 +127,12 @@ export async function analyzeEmail(
       throw new Error('Email not found')
     }
 
-    const emailHtmlBody = email.body?.content || email.snippet || ''
+    const emailHtmlBody = email.bodyHtml || email.body || email.snippet || ''
     
     console.log('✅ Email fetched:', {
       subject: email.subject,
       from: email.from.address,
-      hasBody: !!email.body?.content,
+      hasBody: !!(email.bodyHtml || email.body),
       bodyLength: emailHtmlBody.length
     })
 
