@@ -15,6 +15,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 MICROSOFT_CLIENT_ID=your-azure-app-client-id
 MICROSOFT_CLIENT_SECRET=your-azure-app-client-secret
 MICROSOFT_REDIRECT_URI=http://localhost:3000/api/microsoft/callback
+
+# OpenAI API Configuration (for email analysis)
+OPENAI_API_KEY=sk-your-openai-api-key
+
+# Firecrawl API Configuration (for web scraping)
+FIRECRAWL_API_KEY=fc-your-firecrawl-api-key
 ```
 
 ## How to Get These Values
@@ -57,6 +63,28 @@ MICROSOFT_REDIRECT_URI=http://localhost:3000/api/microsoft/callback
 9. Click **Add permissions**
 10. **Important**: No admin consent needed for personal Microsoft accounts!
 
+### 4. OPENAI_API_KEY
+
+1. Go to [OpenAI Platform](https://platform.openai.com/)
+2. Sign up or log in to your account
+3. Navigate to **API keys** section (click on your profile icon → "View API keys")
+4. Click **Create new secret key**
+5. Give it a name (e.g., "Email Agent Config")
+6. **Copy the API key immediately** → This is your `OPENAI_API_KEY` (you won't see it again!)
+7. Note: You'll need to add billing information to use the API
+   - GPT-4o-mini (used in this app) is very affordable (~$0.15 per 1M input tokens)
+
+### 5. FIRECRAWL_API_KEY
+
+1. Go to [Firecrawl](https://www.firecrawl.dev/)
+2. Sign up for an account
+3. Navigate to your dashboard
+4. Go to **API Keys** section
+5. Copy your API key → This is your `FIRECRAWL_API_KEY`
+6. Note: Firecrawl offers a free tier with 500 credits/month
+   - Each scrape typically costs 1-5 credits depending on the site complexity
+   - The app uses "auto" proxy mode (uses stealth if basic fails)
+
 ## Example .env.local File
 
 ```env
@@ -68,6 +96,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 MICROSOFT_CLIENT_ID=12345678-1234-1234-1234-123456789abc
 MICROSOFT_CLIENT_SECRET=abc~def~ghi~jkl~mno~pqr~stu~vwx~yz
 MICROSOFT_REDIRECT_URI=http://localhost:3000/api/microsoft/callback
+
+# OpenAI
+OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890
+
+# Firecrawl
+FIRECRAWL_API_KEY=fc-1234567890abcdefghijklmnop
 ```
 
 ## Important Notes

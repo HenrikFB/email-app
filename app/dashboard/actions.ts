@@ -7,7 +7,8 @@ export type AgentConfiguration = {
   id: string
   user_id: string
   email_address: string
-  extraction_criteria: string | null
+  match_criteria: string | null
+  extraction_fields: string | null
   analyze_attachments: boolean
   follow_links: boolean
   created_at: string
@@ -41,7 +42,8 @@ export async function getConfigurations(): Promise<AgentConfiguration[]> {
 
 export async function createConfiguration(formData: {
   email_address: string
-  extraction_criteria: string
+  match_criteria: string
+  extraction_fields: string
   analyze_attachments: boolean
   follow_links: boolean
 }) {
@@ -61,7 +63,8 @@ export async function createConfiguration(formData: {
       {
         user_id: user.id,
         email_address: formData.email_address,
-        extraction_criteria: formData.extraction_criteria,
+        match_criteria: formData.match_criteria,
+        extraction_fields: formData.extraction_fields,
         analyze_attachments: formData.analyze_attachments,
         follow_links: formData.follow_links,
       },
@@ -82,7 +85,8 @@ export async function updateConfiguration(
   id: string,
   formData: {
     email_address: string
-    extraction_criteria: string
+    match_criteria: string
+    extraction_fields: string
     analyze_attachments: boolean
     follow_links: boolean
   }
@@ -101,7 +105,8 @@ export async function updateConfiguration(
     .from('agent_configurations')
     .update({
       email_address: formData.email_address,
-      extraction_criteria: formData.extraction_criteria,
+      match_criteria: formData.match_criteria,
+      extraction_fields: formData.extraction_fields,
       analyze_attachments: formData.analyze_attachments,
       follow_links: formData.follow_links,
     })

@@ -20,7 +20,8 @@ async function AnalyzedEmailsList() {
       *,
       agent_configurations (
         email_address,
-        extraction_criteria
+        match_criteria,
+        extraction_fields
       )
     `)
     .eq('user_id', user.id)
@@ -28,9 +29,21 @@ async function AnalyzedEmailsList() {
     .limit(50)
 
   if (error) {
-    console.error('Error fetching analyzed emails:', error)
+    console.error('❌ Error fetching analyzed emails:', error)
     return <div>Error loading analyzed emails</div>
   }
+
+  console.log('✅ Fetched analyzed emails:', analyzedEmails.length)
+  analyzedEmails.forEach((email, idx) => {
+    console.log(`📧 Email ${idx + 1}:`, {
+      subject: email.email_subject,
+      from: email.email_from,
+      status: email.analysis_status,
+      matched: email.matched,
+      agentConfig: email.agent_configurations?.email_address,
+      extractedData: email.extracted_data ? Object.keys(email.extracted_data) : 'none'
+    })
+  })
 
   if (!analyzedEmails || analyzedEmails.length === 0) {
     return (

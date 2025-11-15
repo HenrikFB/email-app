@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { runAnalysis } from '../actions'
 
 interface ResultCardProps {
   result: {
@@ -19,12 +21,16 @@ interface ResultCardProps {
     scraped_urls: string[] | null
     agent_configurations: {
       email_address: string
-      extraction_criteria: string | null
+      match_criteria: string | null
+      extraction_fields: string | null
     } | null
   }
 }
 
 export default function ResultCard({ result }: ResultCardProps) {
+  const [analyzing, setAnalyzing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
@@ -36,6 +42,19 @@ export default function ResultCard({ result }: ResultCardProps) {
       default:
         return 'outline'
     }
+  }
+
+  const handleAnalyze = async () => {
+    setAnalyzing(true)
+    setError(null)
+
+    const response = await runAnalysis(result.id)
+
+    if (!response.success) {
+      setError(response.error || 'Failed to analyze email')
+    }
+
+    setAnalyzing(false)
   }
 
   return (
@@ -78,17 +97,52 @@ export default function ResultCard({ result }: ResultCardProps) {
         )}
 
         {result.analysis_status === 'completed' && result.extracted_data && (
-          <div className="rounded-md border p-4">
-            <p className="mb-2 text-sm font-medium">Extracted Data:</p>
-            <pre className="overflow-x-auto text-xs">
-              {JSON.stringify(result.extracted_data, null, 2)}
-            </pre>
+          <div className="space-y-3">
+            <div className="rounded-md border p-4">
+              <p className="mb-3 text-sm font-medium">Extracted Data:</p>
+              {result.extracted_data.reasoning && (
+                <div className="mb-3 rounded-md bg-muted p-2">
+                  <p className="text-xs font-medium">Reasoning:</p>
+                  <p className="text-xs text-muted-foreground">{result.extracted_data.reasoning}</p>
+                </div>
+              )}
+              {result.extracted_data.confidence !== undefined && (
+                <div className="mb-3">
+                  <p className="text-xs">
+                    Confidence: {(result.extracted_data.confidence * 100).toFixed(0)}%
+                  </p>
+                </div>
+              )}
+              <pre className="overflow-x-auto text-xs">
+                {JSON.stringify(result.extracted_data, null, 2)}
+              </pre>
+            </div>
           </div>
         )}
 
         {result.analysis_status === 'pending' && (
-          <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
-            This email is queued for analysis. Analysis will be implemented in Phase 3.
+          <div className="space-y-3">
+            <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
+              This email is queued for analysis. Click the button below to analyze it now.
+            </div>
+            {error && (
+              <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+                {error}
+              </div>
+            )}
+            <Button 
+              onClick={handleAnalyze} 
+              disabled={analyzing}
+              className="w-full"
+            >
+              {analyzing ? 'Analyzing...' : 'Analyze Email'}
+            </Button>
+          </div>
+        )}
+
+        {result.analysis_status === 'analyzing' && (
+          <div className="rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+            Analysis in progress... This may take a minute.
           </div>
         )}
 

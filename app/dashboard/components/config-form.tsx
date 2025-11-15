@@ -17,7 +17,8 @@ interface ConfigFormProps {
 
 export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormProps) {
   const [emailAddress, setEmailAddress] = useState(config?.email_address || '')
-  const [extractionCriteria, setExtractionCriteria] = useState(config?.extraction_criteria || '')
+  const [matchCriteria, setMatchCriteria] = useState(config?.match_criteria || '')
+  const [extractionFields, setExtractionFields] = useState(config?.extraction_fields || '')
   const [analyzeAttachments, setAnalyzeAttachments] = useState(config?.analyze_attachments || false)
   const [followLinks, setFollowLinks] = useState(config?.follow_links || false)
   const [loading, setLoading] = useState(false)
@@ -31,7 +32,8 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
     try {
       const formData = {
         email_address: emailAddress,
-        extraction_criteria: extractionCriteria,
+        match_criteria: matchCriteria,
+        extraction_fields: extractionFields,
         analyze_attachments: analyzeAttachments,
         follow_links: followLinks,
       }
@@ -45,7 +47,8 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
       // Reset form if creating new
       if (!config) {
         setEmailAddress('')
-        setExtractionCriteria('')
+        setMatchCriteria('')
+        setExtractionFields('')
         setAnalyzeAttachments(false)
         setFollowLinks(false)
       }
@@ -93,17 +96,32 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="extractionCriteria">Extraction Criteria</Label>
+            <Label htmlFor="matchCriteria">What are you interested in?</Label>
             <Textarea
-              id="extractionCriteria"
-              placeholder="Describe what you want to extract or trigger from the email content..."
-              value={extractionCriteria}
-              onChange={(e) => setExtractionCriteria(e.target.value)}
-              rows={6}
+              id="matchCriteria"
+              placeholder="E.g., Software developer jobs with less than 5 years experience, .NET, TypeScript, JavaScript, or RPA/automation. Avoid PLC/SCADA, hardware, electronic engineering."
+              value={matchCriteria}
+              onChange={(e) => setMatchCriteria(e.target.value)}
+              rows={5}
               disabled={loading}
             />
             <p className="text-xs text-muted-foreground">
-              What you want to extract or trigger from the email content
+              Describe what emails you want to match/filter - your criteria for triggering analysis
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="extractionFields">What to extract if matched?</Label>
+            <Textarea
+              id="extractionFields"
+              placeholder="E.g., deadline, technologies, competencies, experience level, company domains, location, work type"
+              value={extractionFields}
+              onChange={(e) => setExtractionFields(e.target.value)}
+              rows={4}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
+              What information to extract if the email matches your criteria above
             </p>
           </div>
 

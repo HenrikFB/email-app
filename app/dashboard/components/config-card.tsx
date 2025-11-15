@@ -90,14 +90,24 @@ export default function ConfigCard({ config }: ConfigCardProps) {
         </div>
       </CardHeader>
       <CardContent>
-        {config.extraction_criteria && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Extraction Criteria:</p>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {config.extraction_criteria}
-            </p>
-          </div>
-        )}
+        <div className="space-y-4">
+          {config.match_criteria && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">What I'm interested in:</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                {config.match_criteria}
+              </p>
+            </div>
+          )}
+          {config.extraction_fields && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">What to extract:</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                {config.extraction_fields}
+              </p>
+            </div>
+          )}
+        </div>
       </CardContent>
       <CardFooter className="flex justify-end space-x-2">
         <Button variant="outline" onClick={() => setIsEditing(true)}>

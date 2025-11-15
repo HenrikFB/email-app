@@ -121,7 +121,8 @@ export async function analyzeSelectedEmails(
           email_from: email.from.address,
           email_to: email.to?.map(t => t.address),
           email_date: email.receivedDateTime,
-          email_message_id: email.internetMessageId || email.id,
+          email_message_id: email.internetMessageId || email.id, // For deduplication
+          graph_message_id: email.id, // For fetching from Microsoft Graph
           email_snippet: email.snippet,
           has_attachments: email.hasAttachments,
           analysis_status: 'pending',
