@@ -76,10 +76,24 @@ export async function analyzeEmailContent(
 }
 
 /**
+ * Truncates text to max length, adding a note if truncated
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) {
+    return text
+  }
+  return text.substring(0, maxLength) + `\n\n[... Content truncated. Original length: ${text.length} chars, showing first ${maxLength} chars ...]`
+}
+
+/**
  * Builds the analysis prompt with user-defined criteria
  * Fully generic - no hardcoded fields
+ * Intelligently truncates content to stay within token limits
  */
 function buildAnalysisPrompt(input: AnalysisInput): string {
+  const MAX_EMAIL_LENGTH = 80000 // ~20k tokens
+  const MAX_SCRAPED_PAGE_LENGTH = 15000 // ~3.75k tokens per page
+  
   let content = `# Email Analysis Request
 
 ## Email Information
@@ -90,15 +104,26 @@ function buildAnalysisPrompt(input: AnalysisInput): string {
     content += `\n- Date: ${input.emailDate}`
   }
 
-  content += `\n\n## Email Content\n${input.emailHtml}`
+  // Truncate email HTML if too long
+  const emailTruncated = input.emailHtml.length > MAX_EMAIL_LENGTH
+  const truncatedEmail = truncateText(input.emailHtml, MAX_EMAIL_LENGTH)
+  if (emailTruncated) {
+    console.log(`⚠️  Email truncated: ${input.emailHtml.length} → ${MAX_EMAIL_LENGTH} chars`)
+  }
+  content += `\n\n## Email Content\n${truncatedEmail}`
 
-  // Add scraped content if available
+  // Add scraped content if available (truncate each page)
   if (input.scrapedContent && input.scrapedContent.length > 0) {
     content += `\n\n## Scraped Web Pages\n`
     input.scrapedContent.forEach((page, idx) => {
       content += `\n### Page ${idx + 1}: ${page.title || page.url}\n`
       content += `URL: ${page.url}\n\n`
-      content += `${page.markdown}\n`
+      const pageTruncated = page.markdown.length > MAX_SCRAPED_PAGE_LENGTH
+      if (pageTruncated) {
+        console.log(`⚠️  Page ${idx + 1} truncated: ${page.markdown.length} → ${MAX_SCRAPED_PAGE_LENGTH} chars`)
+      }
+      const truncatedMarkdown = truncateText(page.markdown, MAX_SCRAPED_PAGE_LENGTH)
+      content += `${truncatedMarkdown}\n`
     })
   }
 
