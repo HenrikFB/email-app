@@ -137,10 +137,10 @@ export async function analyzeSelectedEmails(
           },
         })
 
-        // Store the analysis results
+        // Store the analysis results (no longer using upsert - allow multiple runs)
         await supabase
           .from('analyzed_emails')
-          .upsert({
+          .insert({
             user_id: user.id,
             agent_configuration_id: agentConfigId,
             email_connection_id: connectionId,
@@ -157,6 +157,7 @@ export async function analyzeSelectedEmails(
             analysis_status: result.success ? 'completed' : 'failed',
             matched: result.matched,
             extracted_data: result.extractedData,
+            data_by_source: result.dataBySource || [],  // NEW: Store source-attributed data
             reasoning: result.reasoning,
             confidence: result.confidence,
             scraped_urls: result.scrapedUrls,
@@ -164,8 +165,6 @@ export async function analyzeSelectedEmails(
             email_html_body: result.emailHtmlBody,
             error_message: result.error || null,
             analyzed_at: new Date().toISOString(),
-          }, {
-            onConflict: 'user_id,email_message_id,agent_configuration_id',
           })
 
         analyzedCount++
@@ -178,33 +177,32 @@ export async function analyzeSelectedEmails(
         failedCount++
         console.error(`❌ [${i + 1}/${emailIds.length}] Failed:`, emailError)
         
-        // Try to store the failure
-        try {
-          const email = await getEmailById(connection.aurinko_access_token, emailId)
-          await supabase
-            .from('analyzed_emails')
-            .upsert({
-              user_id: user.id,
-              agent_configuration_id: agentConfigId,
-              email_connection_id: connectionId,
-              email_subject: email.subject,
-              email_from: email.from.address,
-              email_to: email.to?.map(t => t.address),
-              email_date: email.receivedDateTime,
-              email_message_id: email.internetMessageId || email.id,
-              graph_message_id: email.id,
-              email_snippet: email.snippet,
-              has_attachments: email.hasAttachments,
-              analysis_status: 'failed',
-              matched: false,
-              error_message: emailError instanceof Error ? emailError.message : 'Unknown error',
-              analyzed_at: new Date().toISOString(),
-            }, {
-              onConflict: 'user_id,email_message_id,agent_configuration_id',
-            })
-        } catch (storeError) {
-          console.error('Failed to store error:', storeError)
-        }
+            // Try to store the failure
+            try {
+              const email = await getEmailById(connection.aurinko_access_token, emailId)
+              await supabase
+                .from('analyzed_emails')
+                .insert({
+                  user_id: user.id,
+                  agent_configuration_id: agentConfigId,
+                  email_connection_id: connectionId,
+                  email_subject: email.subject,
+                  email_from: email.from.address,
+                  email_to: email.to?.map(t => t.address),
+                  email_date: email.receivedDateTime,
+                  email_message_id: email.internetMessageId || email.id,
+                  graph_message_id: email.id,
+                  email_snippet: email.snippet,
+                  has_attachments: email.hasAttachments,
+                  analysis_status: 'failed',
+                  matched: false,
+                  data_by_source: [],
+                  error_message: emailError instanceof Error ? emailError.message : 'Unknown error',
+                  analyzed_at: new Date().toISOString(),
+                })
+            } catch (storeError) {
+              console.error('Failed to store error:', storeError)
+            }
       }
     }
 

@@ -256,6 +256,7 @@ export async function analyzeEmail(
     console.log(`✅ Aggregation complete:`)
     console.log(`   Matched: ${aggregated.matched ? 'YES' : 'NO'}`)
     console.log(`   Chunks matched: ${aggregated.totalMatches}`)
+    console.log(`   Sources with data: ${aggregated.dataBySource.length}`)
     console.log(`   Overall confidence: ${(aggregated.overallConfidence * 100).toFixed(0)}%`)
     console.log(`   Fields extracted: ${Object.keys(aggregated.aggregatedData).length}`)
     
@@ -264,7 +265,8 @@ export async function analyzeEmail(
       totalMatches: aggregated.totalMatches,
       overallConfidence: aggregated.overallConfidence,
       extractedFieldsCount: Object.keys(aggregated.aggregatedData).length,
-      extractedData: aggregated.aggregatedData
+      extractedData: aggregated.aggregatedData,
+      dataBySource: aggregated.dataBySource
     })
     
     // ========== Finalize Debug Run ==========
@@ -286,6 +288,7 @@ export async function analyzeEmail(
       emailId: input.emailId,
       matched: aggregated.matched,
       extractedData: aggregated.aggregatedData,
+      dataBySource: aggregated.dataBySource,  // NEW: Include source-attributed data
       scrapedUrls: scrapedPages.map(p => p.url),
       allLinksFound,
       emailHtmlBody: emailHtmlBody,
@@ -311,6 +314,7 @@ export async function analyzeEmail(
       emailId: input.emailId,
       matched: false,
       extractedData: {},
+      dataBySource: [],
       scrapedUrls: [],
       allLinksFound: [],
       emailHtmlBody: '',

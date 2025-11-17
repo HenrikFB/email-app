@@ -52,11 +52,19 @@ export interface AnalysisJobInput {
   }
 }
 
+export interface SourcedData {
+  source: string  // 'Email' or URL
+  data: Record<string, any>
+  reasoning: string
+  confidence: number
+}
+
 export interface AnalysisJobResult {
   success: boolean
   emailId: string
   matched: boolean
   extractedData: Record<string, any>
+  dataBySource?: SourcedData[]  // NEW: Data grouped by source
   scrapedUrls: string[]
   allLinksFound: string[]  // All URLs found in email (both scraped and not)
   emailHtmlBody: string    // Original email HTML for debugging

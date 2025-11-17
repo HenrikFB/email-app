@@ -44,7 +44,8 @@ export default function ResultsPage() {
           agent_configurations (
             email_address,
             match_criteria,
-            extraction_fields
+            extraction_fields,
+            button_text_pattern
           )
         `)
         .eq('user_id', user.id)

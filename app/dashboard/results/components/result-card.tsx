@@ -20,6 +20,13 @@ import {
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { deleteAnalyzedEmail } from '../actions'
 
+interface SourcedData {
+  source: string
+  data: Record<string, any>
+  reasoning: string
+  confidence: number
+}
+
 interface ResultCardProps {
   result: {
     id: string
@@ -29,6 +36,7 @@ interface ResultCardProps {
     email_snippet: string | null
     has_attachments: boolean
     extracted_data: any
+    data_by_source?: SourcedData[]  // NEW: Source-attributed data
     matched: boolean
     analysis_status: string
     error_message: string | null
@@ -42,6 +50,7 @@ interface ResultCardProps {
       email_address: string
       match_criteria: string | null
       extraction_fields: string | null
+      button_text_pattern: string | null
     } | null
   }
 }
@@ -60,8 +69,10 @@ export default function ResultCard({ result }: ResultCardProps) {
         console.error('Failed to delete:', deleteResult.error)
         setIsDeleting(false)
         setShowDeleteConfirm(false)
+      } else {
+        // Force page reload to refresh the list
+        window.location.reload()
       }
-      // If successful, the component will be removed due to revalidatePath
     } catch (error) {
       console.error('Error deleting:', error)
       setIsDeleting(false)
@@ -195,7 +206,88 @@ export default function ResultCard({ result }: ResultCardProps) {
         )}
 
         {/* Extracted Data - Collapsible */}
-        {result.analysis_status === 'completed' && result.extracted_data && Object.keys(result.extracted_data).length > 0 && (
+        {/* Extracted Data by Source Section (NEW!) */}
+        {result.matched && result.data_by_source && result.data_by_source.length > 0 && (
+          <Collapsible open={showExtractedData} onOpenChange={setShowExtractedData}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <span className="font-medium">📊 Extracted Data by Source ({result.data_by_source.length} sources)</span>
+                {showExtractedData ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 space-y-3">
+              {result.data_by_source.map((sourceData, sourceIdx) => (
+                <div key={sourceIdx} className="border-2 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-purple-50">
+                  {/* Source Header */}
+                  <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-blue-200">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-xl">
+                          {sourceData.source === 'Email' ? '📧' : '🌐'}
+                        </span>
+                        <p className="text-base font-bold text-gray-900">
+                          {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
+                        </p>
+                      </div>
+                      {sourceData.source !== 'Email' && (
+                        <a
+                          href={sourceData.source}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline flex items-center space-x-1 ml-8 mt-1"
+                        >
+                          <span className="truncate max-w-md">{sourceData.source}</span>
+                          <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                        </a>
+                      )}
+                    </div>
+                    <Badge variant="outline" className={getConfidenceColor(sourceData.confidence)}>
+                      {(sourceData.confidence * 100).toFixed(0)}%
+                    </Badge>
+                  </div>
+
+                  {/* Extracted Fields */}
+                  <div className="space-y-3">
+                    {Object.entries(sourceData.data).map(([key, value]) => (
+                      <div key={key} className="bg-white rounded-md shadow-sm p-3">
+                        <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
+                          {key.replace(/_/g, ' ')}:
+                        </p>
+                        <div className="text-sm text-gray-900">
+                          {Array.isArray(value) ? (
+                            <ul className="list-disc list-inside space-y-1 pl-2">
+                              {value.map((item, idx) => (
+                                <li key={idx} className="text-gray-800">{String(item)}</li>
+                              ))}
+                            </ul>
+                          ) : typeof value === 'object' && value !== null ? (
+                            <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ) : (
+                            <p className="text-gray-800">{String(value)}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Reasoning */}
+                  {sourceData.reasoning && (
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <p className="text-xs text-gray-600 italic">
+                        💭 {sourceData.reasoning}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Fallback: Show old aggregated data if data_by_source is not available */}
+        {result.analysis_status === 'completed' && !result.data_by_source && result.extracted_data && Object.keys(result.extracted_data).length > 0 && (
           <Collapsible open={showExtractedData} onOpenChange={setShowExtractedData}>
             <CollapsibleTrigger asChild>
               <Button variant="outline" className="w-full justify-between">

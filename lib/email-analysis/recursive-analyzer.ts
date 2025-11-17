@@ -9,8 +9,17 @@ import type { ContentChunk } from './content-chunker'
 
 export interface ChunkAnalysisResult {
   chunkIndex: number
+  chunkType: 'email' | 'scraped'  // NEW: Track chunk type
+  source: string  // NEW: 'Email' or the URL
   matched: boolean
   extractedData: Record<string, any>
+  reasoning: string
+  confidence: number
+}
+
+export interface SourcedData {
+  source: string  // 'Email' or URL
+  data: Record<string, any>
   reasoning: string
   confidence: number
 }
@@ -18,7 +27,8 @@ export interface ChunkAnalysisResult {
 export interface AggregatedResult {
   matched: boolean
   totalMatches: number
-  aggregatedData: Record<string, any>
+  aggregatedData: Record<string, any>  // Combined data (backward compatible)
+  dataBySource: SourcedData[]  // NEW: Data grouped by source
   overallConfidence: number
   allChunkResults: ChunkAnalysisResult[]
 }
@@ -87,6 +97,8 @@ If not matched, set matched=false, extractedData={}, and explain why.`
     
     return {
       chunkIndex: chunk.index,
+      chunkType: chunk.type,
+      source: chunk.source || 'Email',
       matched: result.matched || false,
       extractedData: result.extractedData || {},
       reasoning: result.reasoning || 'Analysis completed',
@@ -96,6 +108,8 @@ If not matched, set matched=false, extractedData={}, and explain why.`
     console.error(`❌ Error analyzing chunk ${chunk.index}:`, error)
     return {
       chunkIndex: chunk.index,
+      chunkType: chunk.type,
+      source: chunk.source || 'Email',
       matched: false,
       extractedData: {},
       reasoning: `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -156,6 +170,7 @@ export function aggregateResults(
       matched: false,
       totalMatches: 0,
       aggregatedData: {},
+      dataBySource: [],
       overallConfidence: 0,
       allChunkResults: chunkResults
     }
@@ -195,14 +210,65 @@ export function aggregateResults(
   const totalConfidence = matchedResults.reduce((sum, r) => sum + r.confidence, 0)
   const overallConfidence = totalConfidence / matchedResults.length
   
+  // NEW: Group data by source
+  const sourceMap = new Map<string, SourcedData>()
+  
+  matchedResults.forEach(result => {
+    const source = result.source
+    
+    if (!sourceMap.has(source)) {
+      sourceMap.set(source, {
+        source,
+        data: {},
+        reasoning: result.reasoning,
+        confidence: result.confidence
+      })
+    }
+    
+    const sourcedData = sourceMap.get(source)!
+    
+    // Merge extracted data for this source
+    Object.entries(result.extractedData).forEach(([key, value]) => {
+      if (!sourcedData.data[key]) {
+        sourcedData.data[key] = value
+      } else {
+        // Merge multiple values from same source
+        if (Array.isArray(value) && Array.isArray(sourcedData.data[key])) {
+          sourcedData.data[key] = [...new Set([...sourcedData.data[key], ...value])]
+        } else if (sourcedData.data[key] !== value) {
+          if (Array.isArray(sourcedData.data[key])) {
+            if (!sourcedData.data[key].includes(value)) {
+              sourcedData.data[key].push(value)
+            }
+          } else {
+            sourcedData.data[key] = [sourcedData.data[key], value]
+          }
+        }
+      }
+    })
+    
+    // Update confidence (average if multiple chunks from same source)
+    sourcedData.confidence = (sourcedData.confidence + result.confidence) / 2
+  })
+  
+  const dataBySource = Array.from(sourceMap.values())
+    .sort((a, b) => {
+      // Email first, then by confidence
+      if (a.source === 'Email') return -1
+      if (b.source === 'Email') return 1
+      return b.confidence - a.confidence
+    })
+  
   console.log(`   ✅ Aggregated ${matchedResults.length} matched chunks`)
   console.log(`   📊 Total fields extracted: ${Object.keys(aggregatedData).length}`)
+  console.log(`   📍 Sources: ${dataBySource.length} (Email + ${dataBySource.length - 1} URLs)`)
   console.log(`   📈 Overall confidence: ${(overallConfidence * 100).toFixed(0)}%`)
   
   return {
     matched: true,
     totalMatches: matchedResults.length,
     aggregatedData,
+    dataBySource,
     overallConfidence,
     allChunkResults: chunkResults
   }
