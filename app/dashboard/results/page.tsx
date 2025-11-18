@@ -5,10 +5,21 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Save, Search } from 'lucide-react'
 import ResultCard from './components/result-card'
+import SaveToKBModal from './components/save-to-kb-modal'
+import SearchModal from './components/search-modal'
 
 type FilterType = 'all' | 'matched' | 'not-matched'
 type SortType = 'date-desc' | 'date-asc' | 'confidence-desc' | 'confidence-asc'
+type SourceSelectionInput = {
+  emailId: string
+  sourceId: string
+  label: string
+  data: any
+}
 
 export default function ResultsPage() {
   const [emails, setEmails] = useState<any[]>([])
@@ -16,6 +27,10 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterType>('all')
   const [sortBy, setSortBy] = useState<SortType>('date-desc')
+  const [selectedEmailIds, setSelectedEmailIds] = useState<string[]>([])
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showSearchModal, setShowSearchModal] = useState(false)
+  const [sourceSearchSelections, setSourceSearchSelections] = useState<SourceSelectionInput[]>([])
 
   useEffect(() => {
     loadEmails()
@@ -105,6 +120,37 @@ export default function ResultsPage() {
 
   const matchedCount = emails.filter(e => e.matched === true).length
   const notMatchedCount = emails.filter(e => e.matched === false).length
+  // Get agent config from either selected emails or source selections
+  const primarySelectedEmailId = selectedEmailIds[0] || sourceSearchSelections[0]?.emailId
+  const agentConfigIdForSearch = primarySelectedEmailId
+    ? emails.find(e => e.id === primarySelectedEmailId)?.agent_configuration_id
+    : undefined
+
+  const toggleEmailSelection = (emailId: string) => {
+    setSelectedEmailIds(prev =>
+      prev.includes(emailId)
+        ? prev.filter(id => id !== emailId)
+        : [...prev, emailId]
+    )
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedEmailIds.length === sortedEmails.length) {
+      setSelectedEmailIds([])
+    } else {
+      setSelectedEmailIds(sortedEmails.map(e => e.id))
+    }
+  }
+
+  const handleSaved = () => {
+    loadEmails()
+    setSelectedEmailIds([])
+  }
+
+  const openSearchModal = (sources: SourceSelectionInput[] = []) => {
+    setSourceSearchSelections(sources)
+    setShowSearchModal(true)
+  }
 
   if (loading) {
     return (
@@ -168,11 +214,26 @@ export default function ResultsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Analysis Results</h1>
-        <p className="text-muted-foreground">
-          {emails.length} email{emails.length !== 1 ? 's' : ''} analyzed • {matchedCount} matched • {notMatchedCount} not matched
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Analysis Results</h1>
+          <p className="text-muted-foreground">
+            {emails.length} email{emails.length !== 1 ? 's' : ''} analyzed • {matchedCount} matched • {notMatchedCount} not matched
+            {selectedEmailIds.length > 0 && ` • ${selectedEmailIds.length} selected`}
+          </p>
+        </div>
+        {selectedEmailIds.length > 0 && (
+          <div className="flex gap-2">
+            <Button onClick={() => setShowSaveModal(true)} variant="outline">
+              <Save className="mr-2 h-4 w-4" />
+              Save to KB ({selectedEmailIds.length})
+            </Button>
+            <Button onClick={() => openSearchModal()}>
+              <Search className="mr-2 h-4 w-4" />
+              Find Similar ({selectedEmailIds.length})
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-4">
@@ -210,12 +271,53 @@ export default function ResultsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {sortedEmails.map((email: any) => (
-            <ResultCard key={email.id} result={email} />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center gap-2 pb-2">
+            <Checkbox
+              id="select-all"
+              checked={selectedEmailIds.length === sortedEmails.length && sortedEmails.length > 0}
+              onCheckedChange={toggleSelectAll}
+            />
+            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+              Select all ({sortedEmails.length})
+            </label>
+          </div>
+          <div className="space-y-4">
+            {sortedEmails.map((email: any) => (
+              <div key={email.id} className="flex gap-3">
+                <Checkbox
+                  checked={selectedEmailIds.includes(email.id)}
+                  onCheckedChange={() => toggleEmailSelection(email.id)}
+                  className="mt-6"
+                />
+                <div className="flex-1">
+                  <ResultCard result={email} onSourceSearch={openSearchModal} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
+
+      <SaveToKBModal
+        open={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSaved={handleSaved}
+        selectedEmailIds={selectedEmailIds}
+        emails={emails}
+      />
+
+      <SearchModal
+        open={showSearchModal}
+        onClose={() => {
+          setShowSearchModal(false)
+          setSourceSearchSelections([])
+        }}
+        selectedEmailIds={selectedEmailIds}
+        emails={emails}
+        agentConfigId={agentConfigIdForSearch}
+        selectedSources={sourceSearchSelections}
+      />
     </div>
   )
 }

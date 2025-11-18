@@ -128,6 +128,8 @@ export async function analyzeSelectedEmails(
         const result = await analyzeEmail({
           emailId: emailId,
           accessToken: connection.aurinko_access_token,
+          userId: user.id,
+          agentConfigId: agentConfigId,
           agentConfig: {
             match_criteria: agentConfig.match_criteria || '',
             extraction_fields: agentConfig.extraction_fields || '',

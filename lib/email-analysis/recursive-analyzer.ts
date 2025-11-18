@@ -39,13 +39,14 @@ export interface AggregatedResult {
 async function analyzeChunk(
   chunk: ContentChunk,
   matchCriteria: string,
-  extractionFields: string
+  extractionFields: string,
+  ragContext?: string
 ): Promise<ChunkAnalysisResult> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   })
   
-  const prompt = `Analyze this content chunk:
+  let prompt = `Analyze this content chunk:
 
 **Content Type**: ${chunk.type}
 ${chunk.source ? `**Source URL**: ${chunk.source}` : '**Source**: Email'}
@@ -59,7 +60,14 @@ ${chunk.content}
 ${matchCriteria}
 
 **What to Extract (if matched)**:
-${extractionFields}
+${extractionFields}`
+
+  // Add RAG context if available
+  if (ragContext) {
+    prompt += `\n\n${ragContext}`
+  }
+
+  prompt += `
 
 ---
 
@@ -67,6 +75,7 @@ ${extractionFields}
 1. Determine if this chunk contains information matching the user's criteria
 2. If YES, extract the requested fields as a JSON object
 3. Provide reasoning for your decision
+4. If reference examples were provided, use them to guide your extraction
 
 **Return JSON**:
 {
@@ -124,9 +133,13 @@ If not matched, set matched=false, extractedData={}, and explain why.`
 export async function analyzeChunksRecursively(
   chunks: ContentChunk[],
   matchCriteria: string,
-  extractionFields: string
+  extractionFields: string,
+  ragContext?: string
 ): Promise<ChunkAnalysisResult[]> {
   console.log(`\n🔄 Analyzing ${chunks.length} chunks recursively...`)
+  if (ragContext) {
+    console.log(`   📚 Using RAG context (${ragContext.length} chars)`)
+  }
   
   const results: ChunkAnalysisResult[] = []
   
@@ -134,7 +147,7 @@ export async function analyzeChunksRecursively(
     const chunk = chunks[i]
     console.log(`\n📝 Chunk ${i + 1}/${chunks.length} [${chunk.type}${chunk.source ? `: ${chunk.source}` : ''}]`)
     
-    const result = await analyzeChunk(chunk, matchCriteria, extractionFields)
+    const result = await analyzeChunk(chunk, matchCriteria, extractionFields, ragContext)
     
     if (result.matched) {
       console.log(`   ✅ MATCHED (confidence: ${(result.confidence * 100).toFixed(0)}%)`)

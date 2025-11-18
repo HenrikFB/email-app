@@ -1,13 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Database } from 'lucide-react'
 import { createConfiguration, updateConfiguration, type AgentConfiguration } from '../actions'
+import { listKnowledgeBases, assignKBsToAgentConfig, getAssignedKBs, type KnowledgeBase } from '../knowledge-base/actions'
 
 interface ConfigFormProps {
   config?: AgentConfiguration
@@ -24,6 +27,52 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [buttonTextPattern, setButtonTextPattern] = useState(config?.button_text_pattern || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Knowledge base assignment
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
+  const [selectedKBIds, setSelectedKBIds] = useState<string[]>([])
+  const [loadingKBs, setLoadingKBs] = useState(false)
+
+  useEffect(() => {
+    loadKnowledgeBases()
+    if (config) {
+      loadAssignedKBs()
+    }
+  }, [config?.id])
+
+  const loadKnowledgeBases = async () => {
+    setLoadingKBs(true)
+    try {
+      const result = await listKnowledgeBases()
+      if (result.success) {
+        setKnowledgeBases(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error loading KBs:', error)
+    } finally {
+      setLoadingKBs(false)
+    }
+  }
+
+  const loadAssignedKBs = async () => {
+    if (!config) return
+    try {
+      const result = await getAssignedKBs(config.id)
+      if (result.success) {
+        setSelectedKBIds(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error loading assigned KBs:', error)
+    }
+  }
+
+  const toggleKBSelection = (kbId: string) => {
+    setSelectedKBIds(prev =>
+      prev.includes(kbId)
+        ? prev.filter(id => id !== kbId)
+        : [...prev, kbId]
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,11 +89,17 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         button_text_pattern: buttonTextPattern || undefined,
       }
 
+      let configId: string
       if (config) {
         await updateConfiguration(config.id, formData)
+        configId = config.id
       } else {
-        await createConfiguration(formData)
+        const result = await createConfiguration(formData)
+        configId = result.id
       }
+
+      // Assign knowledge bases
+      await assignKBsToAgentConfig(configId, selectedKBIds)
 
       // Reset form if creating new
       if (!config) {
@@ -54,6 +109,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         setAnalyzeAttachments(false)
         setFollowLinks(false)
         setButtonTextPattern('')
+        setSelectedKBIds([])
       }
 
       onSuccess?.()
@@ -141,6 +197,57 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
               Regex pattern to boost link ranking (not a filter). Use pipe | for multiple patterns. Example: "Se jobbet|Apply"
             </p>
           </div>
+
+          {knowledgeBases.length > 0 && (
+            <div className="space-y-2">
+              <Label>
+                <Database className="inline h-4 w-4 mr-1" />
+                Assign Knowledge Bases (Optional - for RAG)
+              </Label>
+              <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
+                {loadingKBs ? (
+                  <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
+                ) : knowledgeBases.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No knowledge bases yet. Create one from the Knowledge Base page.
+                  </p>
+                ) : (
+                  knowledgeBases.map(kb => (
+                    <div key={kb.id} className="flex items-start space-x-2">
+                      <Checkbox
+                        id={`kb-${kb.id}`}
+                        checked={selectedKBIds.includes(kb.id)}
+                        onCheckedChange={() => toggleKBSelection(kb.id)}
+                        disabled={loading}
+                      />
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`kb-${kb.id}`}
+                          className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                        >
+                          {kb.name}
+                          <Badge variant="outline" className="text-xs">
+                            {kb.type}
+                          </Badge>
+                        </label>
+                        {kb.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {kb.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {kb.document_count} docs • {kb.total_chunks} chunks
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Selected KBs will provide context examples during email analysis (RAG). The AI will search these KBs for similar content to improve extraction accuracy.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-4">
             <Label>Analysis Options</Label>

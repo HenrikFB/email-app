@@ -42,3 +42,6 @@ next-env.d.ts
 
 # email analysis debug runs
 /debug-analysis-runs
+
+# search debug runs
+/debug-search-runs

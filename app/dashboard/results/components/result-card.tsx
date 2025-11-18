@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -22,44 +23,56 @@ import { deleteAnalyzedEmail } from '../actions'
 
 interface SourcedData {
   source: string
-  data: Record<string, any>
+  data: Record<string, unknown>
   reasoning: string
   confidence: number
 }
 
-interface ResultCardProps {
-  result: {
-    id: string
-    email_subject: string
-    email_from: string
-    email_date: string
-    email_snippet: string | null
-    has_attachments: boolean
-    extracted_data: any
-    data_by_source?: SourcedData[]  // NEW: Source-attributed data
-    matched: boolean
-    analysis_status: string
-    error_message: string | null
-    scraped_urls: string[] | null
-    all_links_found: string[] | null
-    email_html_body: string | null
-    reasoning: string | null
-    confidence: number | null
-    analyzed_at: string | null
-    agent_configurations: {
-      email_address: string
-      match_criteria: string | null
-      extraction_fields: string | null
-      button_text_pattern: string | null
-    } | null
-  }
+interface SourceSelectionPayload {
+  emailId: string
+  sourceId: string
+  label: string
+  data: Record<string, unknown>
 }
 
-export default function ResultCard({ result }: ResultCardProps) {
+export interface AnalyzedEmailResult {
+  id: string
+  email_subject: string
+  email_from: string
+  email_date: string
+  email_snippet: string | null
+  has_attachments: boolean
+  extracted_data: Record<string, unknown>
+  data_by_source?: SourcedData[]
+  matched: boolean
+  analysis_status: string
+  error_message: string | null
+  scraped_urls: string[] | null
+  all_links_found: string[] | null
+  email_html_body: string | null
+  reasoning: string | null
+  confidence: number | null
+  analyzed_at: string | null
+  agent_configuration_id?: string | null
+  agent_configurations: {
+    email_address: string
+    match_criteria: string | null
+    extraction_fields: string | null
+    button_text_pattern: string | null
+  } | null
+}
+
+interface ResultCardProps {
+  result: AnalyzedEmailResult
+  onSourceSearch?: (sources: SourceSelectionPayload[]) => void
+}
+
+export default function ResultCard({ result, onSourceSearch }: ResultCardProps) {
   const [showExtractedData, setShowExtractedData] = useState(false)
   const [showRawData, setShowRawData] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -111,6 +124,56 @@ export default function ResultCard({ result }: ResultCardProps) {
   const cardClassName = result.matched 
     ? 'border-green-200 bg-green-50/30' 
     : 'border-gray-200'
+
+  const toggleSourceSelection = (sourceId: string) => {
+    setSelectedSourceIds(prev => {
+      const isSelected = prev.includes(sourceId)
+      const newSelection = isSelected
+        ? prev.filter(id => id !== sourceId)
+        : [...prev, sourceId]
+      
+      console.log(`📋 [Result Card] Source selection toggled:`, {
+        sourceId,
+        action: isSelected ? 'deselected' : 'selected',
+        totalSelected: newSelection.length
+      })
+      
+      return newSelection
+    })
+  }
+
+  const triggerSourceSearch = () => {
+    if (!onSourceSearch || !result.data_by_source) {
+      console.log('⚠️ [Result Card] Cannot trigger source search:', {
+        hasOnSourceSearch: !!onSourceSearch,
+        hasDataBySource: !!result.data_by_source
+      })
+      return
+    }
+
+    const payload = result.data_by_source
+      .map((sourceData, idx) => ({
+        emailId: result.id,
+        sourceId: `${result.id}-${idx}`,
+        label: sourceData.source === 'Email' ? 'Email' : sourceData.source,
+        data: sourceData.data,
+      }))
+      .filter(item => selectedSourceIds.includes(item.sourceId))
+
+    console.log('🔍 [Result Card] Triggering source search:', {
+      selectedSourceIds,
+      payloadCount: payload.length,
+      sources: payload.map(p => ({ label: p.label, emailId: p.emailId }))
+    })
+
+    if (payload.length === 0) {
+      console.log('⚠️ [Result Card] No sources selected')
+      return
+    }
+
+    onSourceSearch(payload)
+    setSelectedSourceIds([])
+  }
 
   // Show delete confirmation dialog
   if (showDeleteConfirm) {
@@ -216,8 +279,12 @@ export default function ResultCard({ result }: ResultCardProps) {
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2 space-y-3">
-              {result.data_by_source.map((sourceData, sourceIdx) => (
-                <div key={sourceIdx} className="border-2 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-purple-50">
+              {result.data_by_source.map((sourceData, sourceIdx) => {
+                const sourceKey = `${result.id}-${sourceIdx}`
+                const isSelected = selectedSourceIds.includes(sourceKey)
+
+                return (
+                  <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-purple-50">
                   {/* Source Header */}
                   <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-blue-200">
                     <div className="flex-1">
@@ -244,6 +311,21 @@ export default function ResultCard({ result }: ResultCardProps) {
                     <Badge variant="outline" className={getConfidenceColor(sourceData.confidence)}>
                       {(sourceData.confidence * 100).toFixed(0)}%
                     </Badge>
+                    {onSourceSearch && (
+                      <div className="ml-4 flex items-center space-x-1">
+                        <Checkbox
+                          id={`${sourceKey}-select`}
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSourceSelection(sourceKey)}
+                        />
+                        <label
+                          htmlFor={`${sourceKey}-select`}
+                          className="text-xs text-muted-foreground cursor-pointer"
+                        >
+                          Include
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   {/* Extracted Fields */}
@@ -280,8 +362,16 @@ export default function ResultCard({ result }: ResultCardProps) {
                       </p>
                     </div>
                   )}
+                  </div>
+                )
+              })}
+              {onSourceSearch && selectedSourceIds.length > 0 && (
+                <div className="flex justify-end pt-2">
+                  <Button size="sm" onClick={triggerSourceSearch}>
+                    Search Selected Sources ({selectedSourceIds.length})
+                  </Button>
                 </div>
-              ))}
+              )}
             </CollapsibleContent>
           </Collapsible>
         )}

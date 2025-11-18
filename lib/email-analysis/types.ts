@@ -43,6 +43,8 @@ export type ScrapingStrategy = 'two-pass' | 'single-pass' | 'smart-select'
 export interface AnalysisJobInput {
   emailId: string
   accessToken: string
+  userId: string  // For RAG context and embeddings
+  agentConfigId: string  // For RAG context (KB assignments)
   agentConfig: {
     match_criteria: string
     extraction_fields: string

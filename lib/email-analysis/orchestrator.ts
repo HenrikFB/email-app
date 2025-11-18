@@ -30,7 +30,65 @@ import {
   cleanupOldDebugRuns,
   type AnalysisDebugData
 } from './debug-logger'
+import { getKBContextForRAG } from '@/lib/embeddings/service'
+import { getAssignedKBs } from '@/app/dashboard/knowledge-base/actions'
 import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage } from './types'
+
+/**
+ * Normalize and deduplicate URLs
+ * - Removes query parameters that don't affect content (tracking, utm_, etc.)
+ * - Normalizes Outlook SafeLinks
+ * - Groups similar URLs and keeps only unique ones
+ */
+function deduplicateUrls(urls: string[]): string[] {
+  const seenNormalized = new Set<string>()
+  const uniqueUrls: string[] = []
+  
+  for (const url of urls) {
+    // Normalize the URL for comparison
+    let normalized = url
+    
+    try {
+      const urlObj = new URL(url)
+      
+      // For SafeLinks, extract the actual URL
+      if (urlObj.hostname.includes('safelinks.protection.outlook.com')) {
+        const actualUrl = urlObj.searchParams.get('url')
+        if (actualUrl) {
+          // Decode and normalize the actual URL
+          normalized = decodeURIComponent(actualUrl)
+          const actualUrlObj = new URL(normalized)
+          
+          // Remove tracking params from actual URL
+          const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'ttid', 'source', 'uid', 'abtestid']
+          paramsToRemove.forEach(param => actualUrlObj.searchParams.delete(param))
+          
+          normalized = actualUrlObj.toString()
+        }
+      } else {
+        // Remove tracking params from regular URLs
+        const paramsToRemove = ['utm_source', 'utm_medium', 'utm_campaign', 'ttid', 'source', 'uid', 'abtestid']
+        paramsToRemove.forEach(param => urlObj.searchParams.delete(param))
+        normalized = urlObj.toString()
+      }
+      
+      // Remove trailing slashes for consistency
+      normalized = normalized.replace(/\/$/, '')
+      
+    } catch (e) {
+      // If URL parsing fails, use as-is
+      console.warn(`⚠️  Could not parse URL for deduplication: ${url}`)
+    }
+    
+    // Only add if we haven't seen this normalized URL
+    if (!seenNormalized.has(normalized)) {
+      seenNormalized.add(normalized)
+      uniqueUrls.push(url) // Keep original URL, not normalized (for scraping)
+    }
+  }
+  
+  return uniqueUrls
+}
 
 /**
  * Main orchestrator for email analysis
@@ -130,13 +188,24 @@ export async function analyzeEmail(
       )
       
       selectedLinks = prioritization.selectedUrls
+      
+      // Deduplicate URLs (normalize and remove duplicates)
+      const uniqueLinks = deduplicateUrls(selectedLinks)
+      const duplicatesRemoved = selectedLinks.length - uniqueLinks.length
+      
+      if (duplicatesRemoved > 0) {
+        console.log(`🔄 Removed ${duplicatesRemoved} duplicate URL(s)`)
+      }
+      
+      selectedLinks = uniqueLinks
       debugData.aiSelectedLinks = selectedLinks
       
-      console.log(`✅ AI selected ${selectedLinks.length}/${allLinks.length} relevant links`)
+      console.log(`✅ AI selected ${selectedLinks.length}/${allLinks.length} relevant links (after deduplication)`)
       
       logDebugStep(debugRunId, 3, 'ai-link-prioritization', {
         totalLinks: allLinks.length,
         selectedCount: selectedLinks.length,
+        duplicatesRemoved,
         selectedUrls: selectedLinks,
         reasoning: prioritization.reasoning
       })
@@ -193,6 +262,42 @@ export async function analyzeEmail(
       console.log('\n⏭️  STEP 4: No links to scrape')
     }
     
+    // ========== STEP 4.5: Fetch RAG Context from Knowledge Bases (if any assigned) ==========
+    let ragContext = ''
+    try {
+      console.log('\n📚 STEP 4.5: Fetching RAG context from assigned knowledge bases...')
+      
+      // Get KBs assigned to this agent config
+      const kbAssignmentResult = await getAssignedKBs(input.agentConfigId)
+      const assignedKBIds = kbAssignmentResult.success ? (kbAssignmentResult.data || []) : []
+      
+      if (assignedKBIds.length > 0) {
+        console.log(`   Found ${assignedKBIds.length} assigned knowledge base(s)`)
+        
+        // Create search query from email subject and snippet
+        const searchQuery = `${email.subject} ${email.snippet || emailPlainText.substring(0, 200)}`
+        
+        ragContext = await getKBContextForRAG(
+          searchQuery,
+          input.userId,
+          assignedKBIds,
+          5 // Get top 5 similar examples
+        )
+        
+        if (ragContext) {
+          console.log(`✅ RAG context retrieved (${ragContext.length} chars)`)
+          debugData.ragContext = ragContext.substring(0, 500) + '...'
+        } else {
+          console.log(`   No relevant RAG context found`)
+        }
+      } else {
+        console.log(`   No knowledge bases assigned to this agent config - skipping RAG`)
+      }
+    } catch (ragError) {
+      console.warn(`⚠️  RAG context fetch failed (continuing without RAG):`, ragError)
+      ragContext = '' // Fail gracefully
+    }
+    
     // ========== STEP 5: Chunk Content ==========
     console.log('\n📦 STEP 5: Chunking content for recursive analysis...')
     
@@ -218,13 +323,14 @@ export async function analyzeEmail(
       chunks: debugData.chunks
     })
     
-    // ========== STEP 6: Recursive Chunk Analysis ==========
+    // ========== STEP 6: Recursive Chunk Analysis (with RAG context) ==========
     console.log('\n🔄 STEP 6: Analyzing chunks recursively...')
     
     const chunkResults = await analyzeChunksRecursively(
       chunks,
       input.agentConfig.match_criteria,
-      input.agentConfig.extraction_fields
+      input.agentConfig.extraction_fields,
+      ragContext // Pass RAG context to analysis
     )
     
     debugData.chunkAnalysisResults = chunkResults.map(r => ({

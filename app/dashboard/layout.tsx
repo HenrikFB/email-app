@@ -43,6 +43,9 @@ export default async function DashboardLayout({
               <Link href="/dashboard/results" className="transition-colors hover:text-foreground/80">
                 Results
               </Link>
+              <Link href="/dashboard/knowledge-base" className="transition-colors hover:text-foreground/80">
+                Knowledge Base
+              </Link>
             </nav>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
