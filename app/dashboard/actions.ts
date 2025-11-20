@@ -13,6 +13,12 @@ export type AgentConfiguration = {
   analyze_attachments: boolean
   follow_links: boolean
   button_text_pattern: string | null
+  user_intent: string | null
+  link_selection_guidance: string | null
+  max_links_to_scrape: number | null
+  content_retrieval_strategy: 'scrape_only' | 'scrape_and_search' | 'search_only' | null
+  extraction_examples: string | null
+  analysis_feedback: string | null
   created_at: string
   updated_at: string
 }
@@ -50,6 +56,12 @@ export async function createConfiguration(formData: {
   analyze_attachments: boolean
   follow_links: boolean
   button_text_pattern?: string
+  user_intent?: string
+  link_selection_guidance?: string
+  max_links_to_scrape?: number
+  content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only'
+  extraction_examples?: string
+  analysis_feedback?: string
 }) {
   const supabase = await createClient()
 
@@ -85,6 +97,12 @@ export async function createConfiguration(formData: {
         analyze_attachments: formData.analyze_attachments,
         follow_links: formData.follow_links,
         button_text_pattern: formData.button_text_pattern || null,
+        user_intent: formData.user_intent || null,
+        link_selection_guidance: formData.link_selection_guidance || null,
+        max_links_to_scrape: formData.max_links_to_scrape ?? 10,
+        content_retrieval_strategy: formData.content_retrieval_strategy || 'scrape_only',
+        extraction_examples: formData.extraction_examples || null,
+        analysis_feedback: formData.analysis_feedback || null,
       },
     ])
     .select()
@@ -113,6 +131,12 @@ export async function updateConfiguration(
     analyze_attachments: boolean
     follow_links: boolean
     button_text_pattern?: string
+    user_intent?: string
+    link_selection_guidance?: string
+    max_links_to_scrape?: number
+    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only'
+    extraction_examples?: string
+    analysis_feedback?: string
   }
 ) {
   const supabase = await createClient()
@@ -148,6 +172,12 @@ export async function updateConfiguration(
       analyze_attachments: formData.analyze_attachments,
       follow_links: formData.follow_links,
       button_text_pattern: formData.button_text_pattern || null,
+      user_intent: formData.user_intent || null,
+      link_selection_guidance: formData.link_selection_guidance || null,
+      max_links_to_scrape: formData.max_links_to_scrape ?? 10,
+      content_retrieval_strategy: formData.content_retrieval_strategy || 'scrape_only',
+      extraction_examples: formData.extraction_examples || null,
+      analysis_feedback: formData.analysis_feedback || null,
     })
     .eq('id', id)
     .eq('user_id', user.id)

@@ -137,6 +137,12 @@ async function seed() {
         follow_links: true,
         button_text_pattern: 'Se jobbet|View Job|Apply Now|Ansøg nu',
         analyze_attachments: false,
+        user_intent: 'I want to track .NET and Python developer jobs in healthcare or fintech with 3-5 years experience requirement. I am particularly interested in RPA/automation roles.',
+        link_selection_guidance: 'Job link titles are often generic like "Software Developer" or "IT Position" - the specific technologies (.NET, Python, RPA) are usually inside the job descriptions, not in the link text.',
+        max_links_to_scrape: 8,  // Job emails can have 50-200 links, but only 3-8 are usually real job postings
+        content_retrieval_strategy: 'search_only',  // LinkedIn job links require auth, use web search to find public postings
+        extraction_examples: '{"technologies": [".NET", "C#", "Python", "SQL Server"], "location": "Copenhagen", "experience": "3-5 years", "domain": "Healthcare"}',
+        analysis_feedback: 'Works well for LinkedIn job emails. Sometimes includes PLC/SCADA jobs which I don\'t want - need better filtering for industrial/hardware roles.',
       },
       {
         id: UUIDs.agentConfigFinance,
@@ -148,6 +154,12 @@ async function seed() {
         follow_links: true,
         button_text_pattern: 'Learn More|View Details|Invest Now',
         analyze_attachments: false,
+        user_intent: 'I want to identify early-stage tech investment opportunities in fintech and healthcare sectors. Looking for equity deals between €500K-€5M with strong growth potential.',
+        link_selection_guidance: 'Investment opportunity links often say "Learn More" or "View Details" - the specific sector (fintech, healthcare) and amounts are inside the pages, not in link text.',
+        max_links_to_scrape: 12,  // Investment emails may have multiple opportunities worth exploring
+        content_retrieval_strategy: 'scrape_and_search',  // Use both for comprehensive due diligence
+        extraction_examples: '{"sector": "Fintech", "investment_type": "Series A Equity", "amount_range": "€2M-€3M", "company_stage": "Early-stage", "expected_return": "3-5x in 4-6 years"}',
+        analysis_feedback: null,  // No specific feedback yet
       }
     ]
     

@@ -79,12 +79,17 @@ export default function ConfigCard({ config }: ConfigCardProps) {
               Created {new Date(config.created_at).toLocaleDateString()}
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {config.analyze_attachments && (
               <Badge variant="secondary">Attachments</Badge>
             )}
             {config.follow_links && (
-              <Badge variant="secondary">Firecrawl</Badge>
+              <Badge variant="secondary">
+                {config.content_retrieval_strategy === 'search_only' && '🔍 Search Only'}
+                {config.content_retrieval_strategy === 'scrape_and_search' && '🔀 Scrape + Search'}
+                {(!config.content_retrieval_strategy || config.content_retrieval_strategy === 'scrape_only') && '🌐 Firecrawl'}
+                {' (max: '}{config.max_links_to_scrape ?? 10})
+              </Badge>
             )}
           </div>
         </div>
@@ -107,11 +112,43 @@ export default function ConfigCard({ config }: ConfigCardProps) {
               </p>
             </div>
           )}
+          {config.user_intent && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">My goal/intent:</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                {config.user_intent}
+              </p>
+            </div>
+          )}
           {config.button_text_pattern && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Button text pattern:</p>
               <p className="text-sm text-muted-foreground font-mono">
                 {config.button_text_pattern}
+              </p>
+            </div>
+          )}
+          {config.link_selection_guidance && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Link selection guidance:</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                {config.link_selection_guidance}
+              </p>
+            </div>
+          )}
+          {config.extraction_examples && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Extraction examples:</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap font-mono text-xs">
+                {config.extraction_examples}
+              </p>
+            </div>
+          )}
+          {config.analysis_feedback && (
+            <div className="space-y-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm font-medium text-yellow-900">📝 Feedback/Notes:</p>
+              <p className="text-sm text-yellow-800 whitespace-pre-wrap">
+                {config.analysis_feedback}
               </p>
             </div>
           )}

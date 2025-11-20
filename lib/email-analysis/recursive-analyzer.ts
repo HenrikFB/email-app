@@ -46,53 +46,82 @@ async function analyzeChunk(
     apiKey: process.env.OPENAI_API_KEY
   })
   
-  let prompt = `Analyze this content chunk:
+  let prompt = `Analyze this content to extract structured data based on the user's specific needs.
 
-**Content Type**: ${chunk.type}
-${chunk.source ? `**Source URL**: ${chunk.source}` : '**Source**: Email'}
+**Content Source**: ${chunk.type === 'email' ? 'Email body' : `Scraped webpage: ${chunk.source}`}
 
-**Content** (${chunk.charCount} chars):
+**Content** (${chunk.charCount} characters):
 ${chunk.content}
 
 ---
 
-**User's Interest (Match Criteria)**:
+**User's Goal**:
 ${matchCriteria}
 
-**What to Extract (if matched)**:
-${extractionFields}`
+**What to Extract** (if this content matches the goal):
+${extractionFields}
 
-  // Add RAG context if available
-  if (ragContext) {
-    prompt += `\n\n${ragContext}`
-  }
+${ragContext ? `---
 
-  prompt += `
+**Reference Examples** (similar successful extractions from past analyses):
+
+${ragContext}
+
+These examples show you:
+- What format and structure to use for extracted fields
+- What level of detail is expected
+- How similar data has been extracted before
+
+Use these as guidance, but adapt to the current content.
 
 ---
+` : ''}
 
-**Task**: 
-1. Determine if this chunk contains information matching the user's criteria
-2. If YES, extract the requested fields as a JSON object
-3. Provide reasoning for your decision
-4. If reference examples were provided, use them to guide your extraction
+**Your Task**:
+
+Understand the user's END GOAL and reasoning about whether this content contains relevant information.
+
+1. **Match Check**: Does this content contain information that matches the user's goal?
+   - Think about the user's intent, not just keyword matching
+   - Consider if this content helps achieve their goal
+   - Be inclusive: if any relevant information exists, consider it a match
+   
+2. **Extraction** (if matched):
+   - Extract ALL fields mentioned in "What to Extract"
+   - Use the exact field names specified by the user
+   - If a field isn't found in the content, use null or empty string (don't omit it)
+   - Follow the format/style from reference examples if provided
+   - Extract actual values, not descriptions or meta-information
+   - Be thorough and precise
+   
+3. **Confidence**: Rate your confidence (0.0-1.0) based on:
+   - How clearly the content matches the user's goal
+   - How complete the extracted data is
+   - How certain you are about the extracted values
 
 **Return JSON**:
 {
   "matched": boolean,
-  "extractedData": { /* user-requested fields */ },
-  "reasoning": "brief explanation (1-2 sentences)",
+  "extractedData": {
+    // Use exact field names from "What to Extract"
+    // Include all fields even if null/empty
+  },
+  "reasoning": "1-2 sentences explaining your decision and what was found",
   "confidence": 0.0-1.0
 }
 
-If not matched, set matched=false, extractedData={}, and explain why.`
+**Important**:
+- If matched=false, set extractedData={} and explain why it doesn't match the user's goal
+- If matched=true but some fields are missing, still include them as null/empty
+- Focus on the user's end goal, not just surface-level keywords
+- Be thorough: extract all available information that matches the requested fields`
 
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{
         role: 'system',
-        content: 'You are analyzing content chunks to extract structured data. Return only valid JSON.'
+        content: 'You are a data extraction specialist who understands user intent and extracts structured information based on their goals. You reason about the user\'s end goal, not just keywords. You are thorough, precise, and follow the exact field specifications provided. Always return valid JSON with matched, extractedData, reasoning, and confidence fields.'
       }, {
         role: 'user',
         content: prompt

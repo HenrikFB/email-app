@@ -33,6 +33,16 @@ export interface ExtractedLink {
 }
 
 /**
+ * Email intent extracted from email content
+ * Used to guide link prioritization with context
+ */
+export interface EmailIntent {
+  refinedGoal: string      // More specific goal based on email content
+  keyTerms: string[]       // Important keywords/phrases (e.g., [".NET", "JavaScript", "RPA"])
+  expectedContent: string  // What kind of content should be in relevant pages
+}
+
+/**
  * Scraping strategy for link processing
  * - two-pass: Quick match check, then scrape if matched (saves credits)
  * - single-pass: Always scrape all links (for future use)
@@ -50,6 +60,12 @@ export interface AnalysisJobInput {
     extraction_fields: string
     follow_links: boolean
     button_text_pattern?: string  // Optional: boost signal for link ranking (e.g., "Se jobbet|Apply")
+    user_intent?: string  // Optional: user's explanation of their goal
+    link_selection_guidance?: string  // Optional: guidance for link selection
+    max_links_to_scrape?: number  // Optional: maximum links to scrape (default: 10)
+    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only'  // How to retrieve content
+    extraction_examples?: string  // Optional: user-provided examples
+    analysis_feedback?: string  // Optional: user feedback/notes
     scraping_strategy?: ScrapingStrategy // Optional, defaults to 'two-pass'
   }
 }

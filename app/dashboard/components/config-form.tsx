@@ -8,7 +8,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Database } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Database, ChevronDown, ChevronUp } from 'lucide-react'
 import { createConfiguration, updateConfiguration, type AgentConfiguration } from '../actions'
 import { listKnowledgeBases, assignKBsToAgentConfig, getAssignedKBs, type KnowledgeBase } from '../knowledge-base/actions'
 
@@ -26,8 +28,21 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [analyzeAttachments, setAnalyzeAttachments] = useState(config?.analyze_attachments || false)
   const [followLinks, setFollowLinks] = useState(config?.follow_links || false)
   const [buttonTextPattern, setButtonTextPattern] = useState(config?.button_text_pattern || '')
+  const [userIntent, setUserIntent] = useState(config?.user_intent || '')
+  const [linkGuidance, setLinkGuidance] = useState(config?.link_selection_guidance || '')
+  const [maxLinksToScrape, setMaxLinksToScrape] = useState<number>(config?.max_links_to_scrape ?? 10)
+  const [contentStrategy, setContentStrategy] = useState<'scrape_only' | 'scrape_and_search' | 'search_only'>(
+    config?.content_retrieval_strategy || 'scrape_only'
+  )
+  const [extractionExamples, setExtractionExamples] = useState(config?.extraction_examples || '')
+  const [analysisFeedback, setAnalysisFeedback] = useState(config?.analysis_feedback || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Collapsible sections state
+  const [matchingOpen, setMatchingOpen] = useState(true)
+  const [linksOpen, setLinksOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   
   // Knowledge base assignment
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
@@ -94,6 +109,12 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         analyze_attachments: analyzeAttachments,
         follow_links: followLinks,
         button_text_pattern: buttonTextPattern || undefined,
+        user_intent: userIntent || undefined,
+        link_selection_guidance: linkGuidance || undefined,
+        max_links_to_scrape: maxLinksToScrape,
+        content_retrieval_strategy: contentStrategy,
+        extraction_examples: extractionExamples || undefined,
+        analysis_feedback: analysisFeedback || undefined,
       }
 
       let configId: string
@@ -117,6 +138,12 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         setAnalyzeAttachments(false)
         setFollowLinks(false)
         setButtonTextPattern('')
+        setUserIntent('')
+        setLinkGuidance('')
+        setMaxLinksToScrape(10)
+        setContentStrategy('scrape_only')
+        setExtractionExamples('')
+        setAnalysisFeedback('')
         setSelectedKBIds([])
       }
 
@@ -139,183 +166,360 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {error && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">
               {error}
             </div>
           )}
           
-          <div className="space-y-2">
-            <Label htmlFor="name">Configuration Name *</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="E.g., Jobs - Software Developer"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground">
-              A unique name to identify this configuration (used for selection in UI)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="emailAddress">Email Address to Monitor</Label>
-            <Input
-              id="emailAddress"
-              type="email"
-              placeholder="incoming@example.com"
-              value={emailAddress}
-              onChange={(e) => setEmailAddress(e.target.value)}
-              required
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground">
-              The email address you want to analyze/listen to
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="matchCriteria">What are you interested in?</Label>
-            <Textarea
-              id="matchCriteria"
-              placeholder="E.g., Software developer jobs with less than 5 years experience, .NET, TypeScript, JavaScript, or RPA/automation. Avoid PLC/SCADA, hardware, electronic engineering."
-              value={matchCriteria}
-              onChange={(e) => setMatchCriteria(e.target.value)}
-              rows={5}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground">
-              Describe what emails you want to match/filter - your criteria for triggering analysis
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="extractionFields">What to extract if matched?</Label>
-            <Textarea
-              id="extractionFields"
-              placeholder="E.g., deadline, technologies, competencies, experience level, company domains, location, work type"
-              value={extractionFields}
-              onChange={(e) => setExtractionFields(e.target.value)}
-              rows={4}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground">
-              What information to extract if the email matches your criteria above
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="buttonTextPattern">Button Text Pattern (Optional)</Label>
-            <Input
-              id="buttonTextPattern"
-              placeholder="E.g., Se jobbet|Apply|View Job|Read More"
-              value={buttonTextPattern}
-              onChange={(e) => setButtonTextPattern(e.target.value)}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground">
-              Regex pattern to boost link ranking (not a filter). Use pipe | for multiple patterns. Example: "Se jobbet|Apply"
-            </p>
-          </div>
-
-          {knowledgeBases.length > 0 && (
+          {/* SECTION 1: Basic Information */}
+          <div className="space-y-4 pb-4 border-b">
+            <h3 className="text-lg font-semibold">Basic Information</h3>
+            
             <div className="space-y-2">
-              <Label>
-                <Database className="inline h-4 w-4 mr-1" />
-                Assign Knowledge Bases (Optional - for RAG)
-              </Label>
-              <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
-                {loadingKBs ? (
-                  <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
-                ) : knowledgeBases.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No knowledge bases yet. Create one from the Knowledge Base page.
-                  </p>
-                ) : (
-                  knowledgeBases.map(kb => (
-                    <div key={kb.id} className="flex items-start space-x-2">
-                      <Checkbox
-                        id={`kb-${kb.id}`}
-                        checked={selectedKBIds.includes(kb.id)}
-                        onCheckedChange={() => toggleKBSelection(kb.id)}
-                        disabled={loading}
-                      />
-                      <div className="flex-1">
-                        <label
-                          htmlFor={`kb-${kb.id}`}
-                          className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                        >
-                          {kb.name}
-                          <Badge variant="outline" className="text-xs">
-                            {kb.type}
-                          </Badge>
-                        </label>
-                        {kb.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {kb.description}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {kb.document_count} docs • {kb.total_chunks} chunks
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <Label htmlFor="name">Configuration Name *</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="E.g., Jobs - Software Developer"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={loading}
+              />
               <p className="text-xs text-muted-foreground">
-                Selected KBs will provide context examples during email analysis (RAG). The AI will search these KBs for similar content to improve extraction accuracy.
+                A unique name to identify this configuration
               </p>
             </div>
-          )}
 
-          <div className="space-y-4">
-            <Label>Analysis Options</Label>
-            
-            <div className="flex items-start space-x-2">
-              <Checkbox
-                id="analyzeAttachments"
-                checked={analyzeAttachments}
-                onCheckedChange={(checked) => setAnalyzeAttachments(checked as boolean)}
+            <div className="space-y-2">
+              <Label htmlFor="emailAddress">Email Address to Monitor</Label>
+              <Input
+                id="emailAddress"
+                type="email"
+                placeholder="incoming@example.com"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                required
                 disabled={loading}
               />
-              <div className="grid gap-1.5 leading-none">
-                <label
-                  htmlFor="analyzeAttachments"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Analyze email attachments
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Include analysis of email attachments in addition to email content
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-2">
-              <Checkbox
-                id="followLinks"
-                checked={followLinks}
-                onCheckedChange={(checked) => setFollowLinks(checked as boolean)}
-                disabled={loading}
-              />
-              <div className="grid gap-1.5 leading-none">
-                <label
-                  htmlFor="followLinks"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Follow links with Firecrawl
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  Open and scrape links found in emails using Firecrawl
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                The email address you want to analyze
+              </p>
             </div>
           </div>
+
+          {/* SECTION 2: Matching & Extraction Rules (Collapsible) */}
+          <Collapsible open={matchingOpen} onOpenChange={setMatchingOpen}>
+            <div className="space-y-4 pb-4 border-b">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                <h3 className="text-lg font-semibold">
+                  Matching & Extraction Rules
+                  <Badge variant="outline" className="ml-2 text-xs">6 fields</Badge>
+                </h3>
+                {matchingOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="matchCriteria">What are you interested in?</Label>
+                  <Textarea
+                    id="matchCriteria"
+                    placeholder="E.g., Software developer jobs with less than 5 years experience, .NET, TypeScript, JavaScript, or RPA/automation. Avoid PLC/SCADA, hardware, electronic engineering."
+                    value={matchCriteria}
+                    onChange={(e) => setMatchCriteria(e.target.value)}
+                    rows={5}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Describe what emails you want to match/filter
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="extractionFields">What to extract if matched?</Label>
+                  <Textarea
+                    id="extractionFields"
+                    placeholder="E.g., deadline, technologies, competencies, experience level, company domains, location, work type"
+                    value={extractionFields}
+                    onChange={(e) => setExtractionFields(e.target.value)}
+                    rows={4}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    What information to extract if the email matches
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="userIntent">
+                    User Intent <Badge variant="secondary" className="ml-1 text-xs">Optional - Recommended</Badge>
+                  </Label>
+                  <Textarea
+                    id="userIntent"
+                    placeholder="E.g., I want to track .NET developer jobs in healthcare or fintech with 3-5 years experience"
+                    value={userIntent}
+                    onChange={(e) => setUserIntent(e.target.value)}
+                    rows={3}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Explain your goal to help the AI understand WHY you want this data
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="extractionExamples">
+                    Extraction Examples <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                  </Label>
+                  <Textarea
+                    id="extractionExamples"
+                    placeholder='E.g., {"technologies": [".NET", "C#", "Python"], "location": "Copenhagen", "experience": "3-5 years"}'
+                    value={extractionExamples}
+                    onChange={(e) => setExtractionExamples(e.target.value)}
+                    rows={4}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide examples of expected extraction format (JSON or natural language)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="analysisFeedback">
+                    Analysis Feedback/Notes <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                  </Label>
+                  <Textarea
+                    id="analysisFeedback"
+                    placeholder="E.g., Always extracts 'Java' even though I only want .NET jobs. Needs better filtering for PLC/SCADA positions."
+                    value={analysisFeedback}
+                    onChange={(e) => setAnalysisFeedback(e.target.value)}
+                    rows={3}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Note what works or fails to improve accuracy over time
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {/* SECTION 3: Link & Content Options (Collapsible) */}
+          <Collapsible open={linksOpen} onOpenChange={setLinksOpen}>
+            <div className="space-y-4 pb-4 border-b">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                <h3 className="text-lg font-semibold">
+                  Link & Content Options
+                  <Badge variant="outline" className="ml-2 text-xs">6 fields</Badge>
+                </h3>
+                {linksOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="space-y-4 pt-2">
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="followLinks"
+                    checked={followLinks}
+                    onCheckedChange={(checked) => setFollowLinks(checked as boolean)}
+                    disabled={loading}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="followLinks"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Follow and analyze links in emails
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Extract and analyze content from links found in emails
+                    </p>
+                  </div>
+                </div>
+
+                {followLinks && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="contentStrategy">Content Retrieval Strategy</Label>
+                      <Select
+                        value={contentStrategy}
+                        onValueChange={(value: any) => setContentStrategy(value)}
+                        disabled={loading}
+                      >
+                        <SelectTrigger id="contentStrategy">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="scrape_only">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Scrape Only</span>
+                              <span className="text-xs text-muted-foreground">Use Firecrawl only (for public URLs)</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="search_only">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Search Only</span>
+                              <span className="text-xs text-muted-foreground">Find alternative public URLs (for LinkedIn, auth-required)</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="scrape_and_search">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Scrape + Search</span>
+                              <span className="text-xs text-muted-foreground">Both methods (most thorough, higher cost)</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {contentStrategy === 'scrape_only' && 'Best for public URLs that Firecrawl can access directly'}
+                        {contentStrategy === 'search_only' && 'Best for authenticated content like LinkedIn jobs - finds public alternatives'}
+                        {contentStrategy === 'scrape_and_search' && 'Most comprehensive - combines both approaches for best results'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="maxLinksToScrape">Max Links to Analyze</Label>
+                      <Input
+                        id="maxLinksToScrape"
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={maxLinksToScrape}
+                        onChange={(e) => setMaxLinksToScrape(parseInt(e.target.value) || 10)}
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Maximum number of links to analyze per email (default: 10). Controls cost and time.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="buttonTextPattern">
+                        Button Text Pattern <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                      </Label>
+                      <Input
+                        id="buttonTextPattern"
+                        placeholder="E.g., Se jobbet|Apply|View Job|Read More"
+                        value={buttonTextPattern}
+                        onChange={(e) => setButtonTextPattern(e.target.value)}
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Regex pattern to boost link ranking. Use pipe | for multiple patterns.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="linkGuidance">
+                        Link Selection Guidance <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                      </Label>
+                      <Textarea
+                        id="linkGuidance"
+                        placeholder="E.g., Include generic job titles like 'Software Developer' - the specific technologies (.NET, JavaScript) are inside the links, not in the link text"
+                        value={linkGuidance}
+                        onChange={(e) => setLinkGuidance(e.target.value)}
+                        rows={3}
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Help the AI understand that link text is often generic
+                      </p>
+                    </div>
+                  </>
+                )}
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {/* SECTION 4: Advanced Options (Collapsible) */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <div className="space-y-4">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                <h3 className="text-lg font-semibold">
+                  Advanced Options
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {knowledgeBases.length > 0 ? '2 sections' : '1 section'}
+                  </Badge>
+                </h3>
+                {advancedOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="space-y-4 pt-2">
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="analyzeAttachments"
+                    checked={analyzeAttachments}
+                    onCheckedChange={(checked) => setAnalyzeAttachments(checked as boolean)}
+                    disabled={loading}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="analyzeAttachments"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Analyze email attachments
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Include analysis of email attachments (PDFs, documents, etc.)
+                    </p>
+                  </div>
+                </div>
+
+                {knowledgeBases.length > 0 && (
+                  <div className="space-y-2 pt-4 border-t">
+                    <Label>
+                      <Database className="inline h-4 w-4 mr-1" />
+                      Assign Knowledge Bases <Badge variant="secondary" className="ml-1 text-xs">Optional - for RAG</Badge>
+                    </Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
+                      {loadingKBs ? (
+                        <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
+                      ) : knowledgeBases.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No knowledge bases yet. Create one from the Knowledge Base page.
+                        </p>
+                      ) : (
+                        knowledgeBases.map(kb => (
+                          <div key={kb.id} className="flex items-start space-x-2">
+                            <Checkbox
+                              id={`kb-${kb.id}`}
+                              checked={selectedKBIds.includes(kb.id)}
+                              onCheckedChange={() => toggleKBSelection(kb.id)}
+                              disabled={loading}
+                            />
+                            <div className="flex-1">
+                              <label
+                                htmlFor={`kb-${kb.id}`}
+                                className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                              >
+                                {kb.name}
+                                <Badge variant="outline" className="text-xs">
+                                  {kb.type}
+                                </Badge>
+                              </label>
+                              {kb.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {kb.description}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {kb.document_count} docs • {kb.total_chunks} chunks
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Selected KBs provide context to improve extraction accuracy (RAG)
+                    </p>
+                  </div>
+                )}
+
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </CardContent>
         <CardFooter className="flex justify-between">
           {onCancel && (

@@ -18,8 +18,9 @@
 
 import { getEmailById } from '@/lib/microsoft-graph/client'
 import { extractLinksFromHtml } from './link-extractor'
-import { prioritizeLinksWithAI } from './link-prioritization'
-import { scrapeUrls } from '@/lib/firecrawl/client'
+import { prioritizeLinksWithAI, extractUserIntentFromEmail } from './link-prioritization'
+import { createContentRetriever } from '@/lib/content-retrieval'
+import type { RetrievalContext } from '@/lib/content-retrieval'
 import { extractTextFromHtml, chunkContent, getChunkStats } from './content-chunker'
 import { analyzeChunksRecursively, aggregateResults } from './recursive-analyzer'
 import {
@@ -174,17 +175,49 @@ export async function analyzeEmail(
       allLinks: allLinks.map(l => ({ url: l.url, text: l.text, isButton: l.isButton }))
     })
     
+    // ========== STEP 2.5: Extract User Intent from Email ==========
+    let emailIntent: { refinedGoal: string; keyTerms: string[]; expectedContent: string } | undefined
+    
+    if (input.agentConfig.follow_links && allLinks.length > 0) {
+      console.log('\n🧠 STEP 2.5: Analyzing email to extract user intent...')
+      
+      emailIntent = await extractUserIntentFromEmail(
+        emailPlainText,
+        email.subject,
+        input.agentConfig.match_criteria,
+        input.agentConfig.extraction_fields,
+        input.agentConfig.user_intent,
+        input.agentConfig.link_selection_guidance
+      )
+      
+      console.log(`✅ Intent extracted:`)
+      console.log(`   Refined goal: ${emailIntent.refinedGoal}`)
+      console.log(`   Key terms: ${emailIntent.keyTerms.length > 0 ? emailIntent.keyTerms.join(', ') : 'None extracted'}`)
+      console.log(`   Expected content: ${emailIntent.expectedContent}`)
+      
+      debugData.emailIntent = emailIntent
+      
+      logDebugStep(debugRunId, 2.5, 'intent-extraction', {
+        refinedGoal: emailIntent.refinedGoal,
+        keyTerms: emailIntent.keyTerms,
+        expectedContent: emailIntent.expectedContent
+      })
+    } else {
+      console.log('\n⏭️  STEP 2.5: Skipping intent extraction (follow_links=false or no links found)')
+    }
+    
     // ========== STEP 3: AI Link Prioritization ==========
     let selectedLinks: string[] = []
     
     if (input.agentConfig.follow_links && allLinks.length > 0) {
-      console.log('\n🤖 STEP 3: AI prioritizing links (no limit - relevance-based)...')
+      console.log('\n🤖 STEP 3: AI prioritizing links with email context...')
       
       const prioritization = await prioritizeLinksWithAI(
         allLinks,
         input.agentConfig.match_criteria,
         input.agentConfig.extraction_fields,
-        input.agentConfig.button_text_pattern
+        input.agentConfig.button_text_pattern,
+        emailIntent  // Pass email intent to guide link selection
       )
       
       selectedLinks = prioritization.selectedUrls
@@ -198,9 +231,22 @@ export async function analyzeEmail(
       }
       
       selectedLinks = uniqueLinks
+      
+      // Apply user-defined max links limit (take top N most relevant)
+      const maxLinks = input.agentConfig.max_links_to_scrape ?? 10
+      const originalSelectedCount = selectedLinks.length
+      
+      if (maxLinks > 0 && selectedLinks.length > maxLinks) {
+        console.log(`🎯 Limiting to top ${maxLinks} most relevant links (from ${selectedLinks.length} AI-selected)`)
+        selectedLinks = selectedLinks.slice(0, maxLinks)
+      }
+      
       debugData.aiSelectedLinks = selectedLinks
       
-      console.log(`✅ AI selected ${selectedLinks.length}/${allLinks.length} relevant links (after deduplication)`)
+      console.log(`✅ AI selected ${originalSelectedCount}/${allLinks.length} relevant links`)
+      if (originalSelectedCount > selectedLinks.length) {
+        console.log(`   📊 Scraping top ${selectedLinks.length} (max_links_to_scrape=${maxLinks})`)
+      }
       
       logDebugStep(debugRunId, 3, 'ai-link-prioritization', {
         totalLinks: allLinks.length,
@@ -213,36 +259,55 @@ export async function analyzeEmail(
       console.log('\n⏭️  STEP 3: Skipping link scraping (follow_links=false or no links found)')
     }
     
-    // ========== STEP 4: Scrape Selected Links ==========
+    // ========== STEP 4: Retrieve Content from Selected Links ==========
     let scrapedPages: ScrapedPage[] = []
     debugData.scrapingAttempts = []
     debugData.scrapedContent = []
     
     if (selectedLinks.length > 0) {
-      console.log('\n🌐 STEP 4: Scraping selected links with retry logic...')
+      const strategy = input.agentConfig.content_retrieval_strategy || 'scrape_only'
+      console.log(`\n📦 STEP 4: Retrieving content from links (strategy: ${strategy})...`)
       
-      const scrapeResults = await scrapeUrls(selectedLinks, {
-        formats: ['markdown'],
-        onlyMainContent: true,
-        waitFor: 3000,  // Wait for redirects/JS
-        maxRetries: 3,   // Retry on failure
-      })
+      // Create retriever based on strategy
+      const retriever = createContentRetriever(strategy)
       
-      scrapedPages = scrapeResults.map(result => ({
+      // Build retrieval context
+      const context: RetrievalContext = {
+        emailSubject: email.subject,
+        matchCriteria: input.agentConfig.match_criteria,
+        extractionFields: input.agentConfig.extraction_fields,
+      }
+      
+      // Retrieve content from all selected links
+      const retrievalResults = await Promise.all(
+        selectedLinks.map(async (url) => {
+          // Find link text for this URL
+          const linkInfo = allLinks.find(l => l.url === url)
+          const contextWithLinkText = {
+            ...context,
+            linkText: linkInfo?.text || '',
+          }
+          
+          return retriever.retrieve(url, contextWithLinkText)
+        })
+      )
+      
+      // Convert to ScrapedPage format
+      scrapedPages = retrievalResults
+        .filter(result => result.success && result.content)
+        .map(result => ({
+          url: result.url,
+          markdown: result.content,
+          title: result.metadata.title || result.url
+        }))
+      
+      debugData.scrapingAttempts = retrievalResults.map(result => ({
         url: result.url,
-        markdown: result.markdown || '',
-        title: result.metadata?.title || result.url
+        attempts: 1,
+        success: result.success,
+        error: result.error,
+        source: result.source,  // Track which source (firecrawl/tavily/hybrid)
       }))
-      
-      debugData.scrapingAttempts = selectedLinks.map(url => {
-        const wasScraped = scrapedPages.some(p => p.url === url)
-        return {
-          url,
-          attempts: 1, // We don't track individual attempts here
-          success: wasScraped,
-          error: wasScraped ? undefined : 'Scraping failed'
-        }
-      })
       
       debugData.scrapedContent = scrapedPages.map(p => ({
         url: p.url,
@@ -250,16 +315,20 @@ export async function analyzeEmail(
         title: p.title
       }))
       
-      console.log(`✅ Successfully scraped ${scrapedPages.length}/${selectedLinks.length} pages`)
+      console.log(`✅ Successfully retrieved ${scrapedPages.length}/${selectedLinks.length} pages`)
+      console.log(`   Strategy: ${strategy}`)
+      console.log(`   Sources: ${retrievalResults.map(r => r.source).join(', ')}`)
       
-      logDebugStep(debugRunId, 4, 'scraping-complete', {
-        urlsToScrape: selectedLinks.length,
-        successfulScrapes: scrapedPages.length,
-        failedScrapes: selectedLinks.length - scrapedPages.length,
+      logDebugStep(debugRunId, 4, 'content-retrieval-complete', {
+        strategy,
+        urlsToRetrieve: selectedLinks.length,
+        successfulRetrievals: scrapedPages.length,
+        failedRetrievals: selectedLinks.length - scrapedPages.length,
+        sources: retrievalResults.map(r => ({ url: r.url, source: r.source })),
         scrapedContent: debugData.scrapedContent
       })
     } else {
-      console.log('\n⏭️  STEP 4: No links to scrape')
+      console.log('\n⏭️  STEP 4: No links to retrieve content from')
     }
     
     // ========== STEP 4.5: Fetch RAG Context from Knowledge Bases (if any assigned) ==========

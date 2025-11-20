@@ -135,6 +135,12 @@ export async function analyzeSelectedEmails(
             extraction_fields: agentConfig.extraction_fields || '',
             follow_links: agentConfig.follow_links,
             button_text_pattern: agentConfig.button_text_pattern || undefined,
+            user_intent: agentConfig.user_intent || undefined,
+            link_selection_guidance: agentConfig.link_selection_guidance || undefined,
+            max_links_to_scrape: agentConfig.max_links_to_scrape ?? 10,
+            content_retrieval_strategy: agentConfig.content_retrieval_strategy || 'scrape_only',
+            extraction_examples: agentConfig.extraction_examples || undefined,
+            analysis_feedback: agentConfig.analysis_feedback || undefined,
             scraping_strategy: 'two-pass', // Use two-pass by default
           },
         })
