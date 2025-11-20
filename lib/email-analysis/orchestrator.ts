@@ -187,6 +187,9 @@ export async function analyzeEmail(
         input.agentConfig.match_criteria,
         input.agentConfig.extraction_fields,
         input.agentConfig.user_intent,
+        input.agentConfig.link_selection_guidance,
+        input.agentConfig.extraction_examples,
+        input.agentConfig.analysis_feedback
         input.agentConfig.link_selection_guidance
       )
       
@@ -217,7 +220,10 @@ export async function analyzeEmail(
         input.agentConfig.match_criteria,
         input.agentConfig.extraction_fields,
         input.agentConfig.button_text_pattern,
-        emailIntent  // Pass email intent to guide link selection
+        emailIntent,  // Pass email intent to guide link selection
+        input.agentConfig.link_selection_guidance,
+        input.agentConfig.extraction_examples,
+        input.agentConfig.analysis_feedback
       )
       
       selectedLinks = prioritization.selectedUrls
@@ -399,7 +405,10 @@ export async function analyzeEmail(
       chunks,
       input.agentConfig.match_criteria,
       input.agentConfig.extraction_fields,
-      ragContext // Pass RAG context to analysis
+      ragContext, // Pass RAG context to analysis
+      input.agentConfig.user_intent,
+      input.agentConfig.extraction_examples,
+      input.agentConfig.analysis_feedback
     )
     
     debugData.chunkAnalysisResults = chunkResults.map(r => ({

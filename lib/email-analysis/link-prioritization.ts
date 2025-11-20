@@ -25,6 +25,8 @@ export interface LinkPrioritizationResult {
  * @param extractionFields - User's extraction fields from agent config
  * @param userIntent - Optional user intent from agent config
  * @param linkGuidance - Optional link selection guidance from agent config
+ * @param extractionExamples - Optional examples of expected extraction format
+ * @param analysisFeedback - Optional user feedback about what works/fails
  * @returns Refined goal, key terms, and expected content
  */
 export async function extractUserIntentFromEmail(
@@ -33,7 +35,9 @@ export async function extractUserIntentFromEmail(
   matchCriteria: string,
   extractionFields: string,
   userIntent?: string,
-  linkGuidance?: string
+  linkGuidance?: string,
+  extractionExamples?: string,
+  analysisFeedback?: string
 ): Promise<EmailIntent> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -58,13 +62,41 @@ ${linkGuidance ? `**Link Selection Guidance**: ${linkGuidance}\n` : ''}
 **Email Content** (first 2000 chars):
 ${truncatedContent}
 
+${extractionExamples ? `
+---
+## Examples of Expected Extractions
+
+The user has provided these examples of what they want to extract:
+${extractionExamples}
+
+Use these examples to understand the TYPE, FORMAT, and SPECIFICITY of information the user is looking for.
+When analyzing the email, look for terms and concepts that would lead to pages containing data in this format.
+---
+` : ''}
+
+${analysisFeedback ? `
+---
+## CRITICAL: Known Issues to Avoid
+
+The user has noted these problems with past analyses:
+${analysisFeedback}
+
+Pay SPECIAL ATTENTION to avoiding these issues when analyzing this email.
+If feedback mentions over-including certain content, be more conservative.
+If feedback mentions missing relevant content, be more inclusive.
+This feedback represents ACTUAL PROBLEMS the user experienced - treat it as a hard constraint.
+---
+` : ''}
+
 **Your Task**:
 Extract the SPECIFIC details the user is looking for based on their goal and the email content.
 
-Think about:
+Think step-by-step:
 1. What specific keywords/technologies/terms are mentioned in the email?
 2. What is the user's end goal (not just surface-level keywords)?
 3. What kind of content would be on pages containing this information?
+4. ${extractionExamples ? 'Do the key terms I\'m extracting match the TYPE of data shown in the examples?' : ''}
+5. ${analysisFeedback ? 'Am I avoiding the problems mentioned in the feedback?' : ''}
 
 **Important**: 
 - Link text might be generic ("Software Developer", "IT jobs", "View Details")
@@ -126,6 +158,9 @@ Return only valid JSON.`
  * @param extractionFields - What the user wants to extract
  * @param buttonTextPattern - Optional pattern to boost link ranking (e.g., "Se jobbet|Apply")
  * @param emailIntent - Optional intent extracted from email content
+ * @param linkGuidance - Optional guidance for link selection
+ * @param extractionExamples - Optional examples of expected extraction format
+ * @param analysisFeedback - Optional user feedback about what works/fails
  * @returns Selected URLs in order of relevance
  */
 export async function prioritizeLinksWithAI(
@@ -133,7 +168,10 @@ export async function prioritizeLinksWithAI(
   matchCriteria: string,
   extractionFields: string,
   buttonTextPattern?: string,
-  emailIntent?: EmailIntent
+  emailIntent?: EmailIntent,
+  linkGuidance?: string,
+  extractionExamples?: string,
+  analysisFeedback?: string
 ): Promise<LinkPrioritizationResult> {
   console.log(`\n🤖 AI Link Prioritization: Analyzing ${links.length} links...`)
   
@@ -178,7 +216,42 @@ ${emailIntent?.expectedContent ? `**Expected Page Content**:
 ${emailIntent.expectedContent}
 ` : ''}
 
+${linkGuidance ? `**Link Selection Guidance**:
+${linkGuidance}
+` : ''}
+
 ${buttonTextPattern ? `**Priority Signal**: Links with text matching "${buttonTextPattern}" are marked with ⭐ below. These are strong candidates.
+` : ''}
+
+${extractionExamples ? `
+---
+## Extraction Target Examples
+
+The user has provided these examples of the information they want to extract:
+${extractionExamples}
+
+When evaluating links, ask yourself: Would this link likely lead to a page containing information matching these examples?
+
+For instance, if examples show specific technologies like ".NET" and "Python", prioritize links that would lead to pages mentioning these technologies - even if the link text itself is generic like "Software Developer".
+
+If examples show specific investment amounts or sectors, prioritize links to pages that would have those details - even if the link text just says "Investment Opportunity".
+---
+` : ''}
+
+${analysisFeedback ? `
+---
+## CRITICAL: Past Link Selection Issues
+
+The user has noted these problems with previous link selections:
+${analysisFeedback}
+
+Actively AVOID repeating these mistakes:
+- If feedback mentions over-including certain types of links, be MORE CONSERVATIVE about those
+- If feedback mentions missing relevant links, be MORE INCLUSIVE of similar patterns
+- If feedback mentions including wrong topics (e.g., "includes PLC/SCADA when I want software"), STRICTLY EXCLUDE those topics
+
+This is MANDATORY feedback you MUST incorporate into your selection criteria.
+---
 ` : ''}
 
 **All Links Found** (${Math.min(links.length, 50)} shown):
@@ -193,11 +266,13 @@ The SPECIFIC information the user wants (${emailIntent?.keyTerms?.slice(0, 3).jo
 **Your Task**:
 Select links that are likely to lead to pages containing the specific information mentioned in "Key Terms" and "User's Goal".
 
-**Selection Reasoning**:
+**Selection Reasoning (think step-by-step)**:
 1. ✅ Generic job/opportunity/content links MIGHT contain the specifics - include them if they could relate to the goal
 2. ✅ Links marked with ⭐ (button pattern) are strong signals - prioritize these
 3. ✅ Think about the user's END GOAL and what pages would have that information
-4. ❌ Skip: Truly irrelevant links (homepage, login, social media, unsubscribe, about, terms, privacy, generic navigation)
+4. ${extractionExamples ? '✅ Would this link lead to a page with data matching the example format?' : ''}
+5. ${analysisFeedback ? '✅ Does this selection avoid the problems mentioned in the feedback?' : ''}
+6. ❌ Skip: Truly irrelevant links (homepage, login, social media, unsubscribe, about, terms, privacy, generic navigation)
 
 **Examples**:
 - Link text: "Software Developer Position" (generic) → SELECT if user wants .NET/JavaScript jobs (specifics likely inside)
