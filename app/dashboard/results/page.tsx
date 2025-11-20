@@ -57,6 +57,7 @@ export default function ResultsPage() {
         .select(`
           *,
           agent_configurations (
+            name,
             email_address,
             match_criteria,
             extraction_fields,
@@ -81,7 +82,7 @@ export default function ResultsPage() {
           status: email.analysis_status,
           matched: email.matched,
           confidence: email.confidence,
-          agentConfig: email.agent_configurations?.email_address,
+          agentConfig: email.agent_configurations?.name || email.agent_configurations?.email_address,
           extractedData: email.extracted_data ? Object.keys(email.extracted_data) : 'none'
         })
       })

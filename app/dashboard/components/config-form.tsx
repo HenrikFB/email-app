@@ -19,6 +19,7 @@ interface ConfigFormProps {
 }
 
 export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormProps) {
+  const [name, setName] = useState(config?.name || '')
   const [emailAddress, setEmailAddress] = useState(config?.email_address || '')
   const [matchCriteria, setMatchCriteria] = useState(config?.match_criteria || '')
   const [extractionFields, setExtractionFields] = useState(config?.extraction_fields || '')
@@ -80,7 +81,13 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
     setLoading(true)
 
     try {
+      if (!name.trim()) {
+        setError('Name is required')
+        return
+      }
+
       const formData = {
+        name: name.trim(),
         email_address: emailAddress,
         match_criteria: matchCriteria,
         extraction_fields: extractionFields,
@@ -103,6 +110,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
 
       // Reset form if creating new
       if (!config) {
+        setName('')
         setEmailAddress('')
         setMatchCriteria('')
         setExtractionFields('')
@@ -138,6 +146,22 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
             </div>
           )}
           
+          <div className="space-y-2">
+            <Label htmlFor="name">Configuration Name *</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="E.g., Jobs - Software Developer"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
+              A unique name to identify this configuration (used for selection in UI)
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="emailAddress">Email Address to Monitor</Label>
             <Input

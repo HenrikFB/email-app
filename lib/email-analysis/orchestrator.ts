@@ -388,6 +388,16 @@ export async function analyzeEmail(
     console.log(`Debug: debug-analysis-runs/${debugRunId}`)
     console.log('═'.repeat(70) + '\n')
     
+    // Build scraped_content object for storage
+    const scrapedContent: Record<string, { markdown: string; title: string; scraped_at: string }> = {}
+    scrapedPages.forEach(page => {
+      scrapedContent[page.url] = {
+        markdown: page.markdown,
+        title: page.title,
+        scraped_at: new Date().toISOString()
+      }
+    })
+    
     // Return result
     return {
       success: true,
@@ -396,6 +406,7 @@ export async function analyzeEmail(
       extractedData: aggregated.aggregatedData,
       dataBySource: aggregated.dataBySource,  // NEW: Include source-attributed data
       scrapedUrls: scrapedPages.map(p => p.url),
+      scrapedContent: Object.keys(scrapedContent).length > 0 ? scrapedContent : undefined,
       allLinksFound,
       emailHtmlBody: emailHtmlBody,
       reasoning: aggregated.totalMatches > 0
@@ -422,6 +433,7 @@ export async function analyzeEmail(
       extractedData: {},
       dataBySource: [],
       scrapedUrls: [],
+      scrapedContent: undefined,
       allLinksFound: [],
       emailHtmlBody: '',
       reasoning: 'Analysis failed',

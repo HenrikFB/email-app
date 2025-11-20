@@ -281,7 +281,7 @@ export default function EmailBrowserPage() {
                 <SelectContent>
                   {agentConfigs.map((config) => (
                     <SelectItem key={config.id} value={config.id}>
-                      {config.email_address}
+                      {config.name || config.email_address}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -56,10 +56,22 @@ export async function saveEmailToKB(
       return { success: false, error: 'Not authenticated' }
     }
     
-    // Get the analyzed email
+    // Get the analyzed email with agent configuration
     const { data: email, error: emailError } = await supabase
       .from('analyzed_emails')
-      .select('*')
+      .select(`
+        *,
+        agent_configurations (
+          id,
+          name,
+          email_address,
+          match_criteria,
+          extraction_fields,
+          analyze_attachments,
+          follow_links,
+          button_text_pattern
+        )
+      `)
       .eq('id', analyzedEmailId)
       .eq('user_id', user.id)
       .single()
@@ -89,6 +101,31 @@ export async function saveEmailToKB(
       kbId = newKB.id
     }
     
+    // Create agent config snapshot if available
+    const agentConfig = email.agent_configurations
+    const agentConfigSnapshot = agentConfig ? {
+      name: agentConfig.name,
+      email_address: agentConfig.email_address,
+      match_criteria: agentConfig.match_criteria,
+      extraction_fields: agentConfig.extraction_fields,
+      analyze_attachments: agentConfig.analyze_attachments,
+      follow_links: agentConfig.follow_links,
+      button_text_pattern: agentConfig.button_text_pattern,
+    } : null
+    
+    // Create analyzed email snapshot
+    const analyzedEmailSnapshot = {
+      email_subject: email.email_subject,
+      email_from: email.email_from,
+      email_date: email.email_date,
+      reasoning: email.reasoning,
+      confidence: email.confidence,
+      matched: email.matched,
+      extracted_data: email.extracted_data,
+      data_by_source: email.data_by_source,
+      scraped_urls: email.scraped_urls,
+    }
+    
     // Create document from email
     const content = JSON.stringify(email.extracted_data, null, 2)
     const { data: document, error: docError } = await supabase
@@ -100,6 +137,9 @@ export async function saveEmailToKB(
         type: 'saved_email',
         content: content,
         analyzed_email_id: analyzedEmailId,
+        source_agent_config_id: agentConfig?.id || null,
+        agent_config_snapshot: agentConfigSnapshot,
+        analyzed_email_snapshot: analyzedEmailSnapshot,
         notes: note || null,
       })
       .select()
@@ -150,10 +190,22 @@ export async function saveScrapedUrlToKB(
       return { success: false, error: 'Not authenticated' }
     }
     
-    // Get the analyzed email
+    // Get the analyzed email with agent configuration
     const { data: email, error: emailError } = await supabase
       .from('analyzed_emails')
-      .select('*')
+      .select(`
+        *,
+        agent_configurations (
+          id,
+          name,
+          email_address,
+          match_criteria,
+          extraction_fields,
+          analyze_attachments,
+          follow_links,
+          button_text_pattern
+        )
+      `)
       .eq('id', analyzedEmailId)
       .eq('user_id', user.id)
       .single()
@@ -189,6 +241,31 @@ export async function saveScrapedUrlToKB(
       kbId = newKB.id
     }
     
+    // Create agent config snapshot if available
+    const agentConfig = email.agent_configurations
+    const agentConfigSnapshot = agentConfig ? {
+      name: agentConfig.name,
+      email_address: agentConfig.email_address,
+      match_criteria: agentConfig.match_criteria,
+      extraction_fields: agentConfig.extraction_fields,
+      analyze_attachments: agentConfig.analyze_attachments,
+      follow_links: agentConfig.follow_links,
+      button_text_pattern: agentConfig.button_text_pattern,
+    } : null
+    
+    // Create analyzed email snapshot
+    const analyzedEmailSnapshot = {
+      email_subject: email.email_subject,
+      email_from: email.email_from,
+      email_date: email.email_date,
+      reasoning: email.reasoning,
+      confidence: email.confidence,
+      matched: email.matched,
+      extracted_data: email.extracted_data,
+      data_by_source: email.data_by_source,
+      scraped_urls: email.scraped_urls,
+    }
+    
     // Create document from scraped URL data
     const content = `${JSON.stringify(sourceData.data, null, 2)}\n\nReasoning: ${sourceData.reasoning}`
     const { data: document, error: docError } = await supabase
@@ -201,6 +278,9 @@ export async function saveScrapedUrlToKB(
         content: content,
         analyzed_email_id: analyzedEmailId,
         source_url: sourceUrl,
+        source_agent_config_id: agentConfig?.id || null,
+        agent_config_snapshot: agentConfigSnapshot,
+        analyzed_email_snapshot: analyzedEmailSnapshot,
         notes: note || null,
       })
       .select()

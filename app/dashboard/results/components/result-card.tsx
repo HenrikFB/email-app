@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/collapsible'
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { deleteAnalyzedEmail } from '../actions'
+import { EmailBodyViewer, ScrapedContentViewer } from '@/components/content-viewer'
 
 interface SourcedData {
   source: string
@@ -55,11 +56,13 @@ export interface AnalyzedEmailResult {
   analyzed_at: string | null
   agent_configuration_id?: string | null
   agent_configurations: {
+    name: string
     email_address: string
     match_criteria: string | null
     extraction_fields: string | null
     button_text_pattern: string | null
   } | null
+  scraped_content?: Record<string, { markdown: string; title?: string; scraped_at?: string }> | null
 }
 
 interface ResultCardProps {
@@ -264,7 +267,9 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
         {/* Agent Configuration Reference */}
         {result.agent_configurations && (
           <div className="rounded-md bg-muted p-3">
-            <p className="text-xs font-medium text-muted-foreground">Agent Config: {result.agent_configurations.email_address}</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              Agent Config: {result.agent_configurations?.name || result.agent_configurations?.email_address || 'N/A'}
+            </p>
           </div>
         )}
 
@@ -450,29 +455,26 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
               </div>
             )}
 
-            {/* Email HTML Body - Modal */}
+            {/* Email Body Viewer */}
             {result.email_html_body && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full text-xs">
-                    View Full Email HTML
-                  </Button>
-                </DialogTrigger>
-                    <DialogContent className="max-h-[80vh] max-w-7xl overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Email HTML Content</DialogTitle>
-                    <DialogDescription>
-                      Full email HTML body (for debugging)
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="rounded-md border bg-gray-50 p-4">
-                    <pre className="overflow-x-auto text-xs">
-                      {result.email_html_body.substring(0, 5000)}
-                      {result.email_html_body.length > 5000 && '... (truncated)'}
-                    </pre>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <div className="flex gap-2">
+                <EmailBodyViewer
+                  htmlBody={result.email_html_body}
+                  triggerLabel="View Full Email Body"
+                  triggerVariant="outline"
+                  triggerSize="sm"
+                />
+              </div>
+            )}
+
+            {/* Scraped Content Viewer */}
+            {result.scraped_content && Object.keys(result.scraped_content).length > 0 && (
+              <ScrapedContentViewer
+                scrapedContent={result.scraped_content}
+                triggerLabel="View Scraped URLs"
+                triggerVariant="outline"
+                triggerSize="sm"
+              />
             )}
 
             {/* Email Snippet */}

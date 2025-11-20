@@ -130,6 +130,7 @@ async function seed() {
       {
         id: UUIDs.agentConfigJobs,
         user_id: USER_ID,
+        name: 'Jobs - Software Developer',
         email_address: 'jobs@example.com',
         match_criteria: 'Software development positions requiring .NET, C#, Python, SQL, or automation/RPA technologies. Focus on healthcare, public sector, or fintech domains.',
         extraction_fields: 'technologies, domain, location, company, salary_range, deadline, required_experience, competencies',
@@ -140,6 +141,7 @@ async function seed() {
       {
         id: UUIDs.agentConfigFinance,
         user_id: USER_ID,
+        name: 'Finance - Tech Investments',
         email_address: 'investments@example.com',
         match_criteria: 'Investment opportunities in technology sector, equity investments between €500K-€5M, early-stage startups, fintech companies',
         extraction_fields: 'sector, investment_type, amount_range, company_stage, valuation, expected_return, deadline, risk_level',
@@ -635,6 +637,38 @@ Recommendations:
         analysis_status: 'completed',
         error_message: null,
         scraped_urls: ['https://midtjob.dk/ad/alsidig-udvikler-til-egenudviklede-losninger-barselsvikariat/qj4vyc/da'],
+        scraped_content: {
+          'https://midtjob.dk/ad/alsidig-udvikler-til-egenudviklede-losninger-barselsvikariat/qj4vyc/da': {
+            markdown: `# Senior .NET Developer Position - Region Midtjylland
+
+Vi søger en alsidig udvikler til opgaver indenfor både RPA, front-end- og back-end-udvikling.
+
+## Teknologier
+- .NET (C#)
+- Python
+- SQL Server
+- UiPath (RPA)
+- React (frontend)
+
+## Domæne
+Sundhedsvæsenet, offentlig sektor
+
+## Lokation
+Aarhus, Danmark
+
+## Erfaring
+Minimum 3 års erfaring med .NET og Python
+
+Du kommer til at arbejde med:
+- Løsningsdesign, udvikling og test af RPA-løsninger i UiPath og/eller Python
+- Backend udvikling af nye projekter der bliver egenudviklet
+- Frontend udvikling i React
+
+Det er vigtigt, at du har kompetencer indenfor frontend og backend-udvikling og erfaring med Scrum eller lignende arbejdsmetoder.`,
+            title: 'Senior .NET Developer Position - Region Midtjylland',
+            scraped_at: new Date('2024-12-15T10:00:00Z').toISOString()
+          }
+        },
         reasoning: 'Strong match: Requires .NET, C#, Python, SQL, and UiPath (RPA). Healthcare domain matches criteria. Location in Aarhus.',
         confidence: 0.92,
         all_links_found: [
@@ -703,6 +737,30 @@ Recommendations:
         analysis_status: 'completed',
         error_message: null,
         scraped_urls: ['https://fintechstartup.dk/careers/fullstack-developer'],
+        scraped_content: {
+          'https://fintechstartup.dk/careers/fullstack-developer': {
+            markdown: `# Full Stack Developer - Fintech Startup
+
+We are looking for an experienced full stack developer.
+
+## Technologies
+- .NET, C#
+- TypeScript, React
+- SQL, Azure
+- Microservices architecture
+
+## Domain
+Fintech
+
+## Location
+Copenhagen, Denmark
+
+## Experience
+5+ years with .NET and web development`,
+            title: 'Full Stack Developer - Fintech Startup',
+            scraped_at: new Date('2024-12-14T14:30:00Z').toISOString()
+          }
+        },
         reasoning: 'Good match: .NET and TypeScript required, fintech domain, strong technical requirements',
         confidence: 0.88,
         all_links_found: [
@@ -810,6 +868,33 @@ Recommendations:
         analysis_status: 'completed',
         error_message: null,
         scraped_urls: ['https://venturecapital.com/opportunities/q4-tech-investments'],
+        scraped_content: {
+          'https://venturecapital.com/opportunities/q4-tech-investments': {
+            markdown: `# Q4 Investment Opportunities - Tech Sector
+
+We have several exciting investment opportunities in the technology sector.
+
+## Sector
+Technology
+
+## Investment Type
+Equity
+
+## Amount Range
+€500K-€2M
+
+## Company Stage
+Series A
+
+## Expected Return
+3-5x over 5 years
+
+## Risk Level
+Medium`,
+            title: 'Q4 Investment Opportunities - Tech Sector',
+            scraped_at: new Date('2024-12-12T11:00:00Z').toISOString()
+          }
+        },
         reasoning: 'Strong match: Tech sector equity investments in Series A stage, amount range matches criteria',
         confidence: 0.90,
         all_links_found: [
@@ -878,6 +963,33 @@ Recommendations:
         analysis_status: 'completed',
         error_message: null,
         scraped_urls: ['https://angelinvestors.dk/deals/fintech-seed-2024'],
+        scraped_content: {
+          'https://angelinvestors.dk/deals/fintech-seed-2024': {
+            markdown: `# Fintech Startup Investment Opportunity
+
+Early-stage fintech startup seeking investment.
+
+## Sector
+Financial Technology
+
+## Investment Type
+Equity
+
+## Amount
+€750K
+
+## Company Stage
+Seed
+
+## Expected Return
+5-7x over 7 years
+
+## Risk Level
+High`,
+            title: 'Fintech Startup Investment Opportunity',
+            scraped_at: new Date('2024-12-11T15:00:00Z').toISOString()
+          }
+        },
         reasoning: 'Good match: Fintech sector, equity investment, amount within range, early stage',
         confidence: 0.85,
         all_links_found: [
@@ -1004,6 +1116,200 @@ Recommendations:
     }
     
     // ============================================
+    // 9. SIMULATE "SAVE TO KB" FOR SOME EMAILS
+    // ============================================
+    console.log('\n💾 Simulating "Save to Knowledge Base" for sample emails...')
+    
+    // Save the first job email to "Old Job Descriptions" KB
+    if (emailIds.length > 0) {
+      const email1 = analyzedEmails[0]
+      const emailId1 = emailIds[0]
+      
+      // Fetch agent config for this email
+      const { data: agentConfig1 } = await supabase
+        .from('agent_configurations')
+        .select('*')
+        .eq('id', email1.agent_configuration_id)
+        .single()
+      
+      if (agentConfig1) {
+        const agentConfigSnapshot1 = {
+          name: agentConfig1.name,
+          email_address: agentConfig1.email_address,
+          match_criteria: agentConfig1.match_criteria,
+          extraction_fields: agentConfig1.extraction_fields,
+          analyze_attachments: agentConfig1.analyze_attachments,
+          follow_links: agentConfig1.follow_links,
+          button_text_pattern: agentConfig1.button_text_pattern,
+        }
+        
+        const analyzedEmailSnapshot1 = {
+          email_subject: email1.email_subject,
+          email_from: email1.email_from,
+          email_date: email1.email_date,
+          reasoning: email1.reasoning,
+          confidence: email1.confidence,
+          matched: email1.matched,
+          extracted_data: email1.extracted_data,
+          data_by_source: email1.data_by_source,
+          scraped_urls: email1.scraped_urls,
+        }
+        
+        const savedDocId1 = randomUUID()
+        const { error: saveError1 } = await supabase
+          .from('kb_documents')
+          .insert({
+            id: savedDocId1,
+            user_id: USER_ID,
+            knowledge_base_id: UUIDs.kbOldJobDescriptions,
+            title: email1.email_subject,
+            type: 'saved_email',
+            content: JSON.stringify(email1.extracted_data, null, 2),
+            analyzed_email_id: emailId1,
+            source_agent_config_id: agentConfig1.id,
+            agent_config_snapshot: agentConfigSnapshot1,
+            analyzed_email_snapshot: analyzedEmailSnapshot1,
+            notes: 'Saved from seed script - demonstrates snapshot functionality',
+          })
+        
+        if (saveError1) {
+          console.error('   ❌ Error saving email 1 to KB:', saveError1)
+        } else {
+          console.log(`   ✅ Saved email to KB: ${email1.email_subject}`)
+          
+          // Generate embedding for this saved email
+          const savedContent1 = JSON.stringify(email1.extracted_data, null, 2)
+          const chunks1 = chunkText(savedContent1)
+          
+          for (let i = 0; i < chunks1.length; i++) {
+            const embedding1 = await generateEmbedding(chunks1[i])
+            await supabase
+              .from('kb_chunks')
+              .insert({
+                user_id: USER_ID,
+                knowledge_base_id: UUIDs.kbOldJobDescriptions,
+                document_id: savedDocId1,
+                content: chunks1[i],
+                chunk_index: i,
+                char_count: chunks1[i].length,
+                embedding: embedding1
+              })
+          }
+          
+          // Update document chunk count
+          await supabase
+            .from('kb_documents')
+            .update({
+              chunk_count: chunks1.length,
+              char_count: savedContent1.length
+            })
+            .eq('id', savedDocId1)
+        }
+      }
+    }
+    
+    // Save the first finance email to "Investment History" KB
+    if (emailIds.length > 3) {
+      const email4 = analyzedEmails[3]
+      const emailId4 = emailIds[3]
+      
+      // Fetch agent config for this email
+      const { data: agentConfig4 } = await supabase
+        .from('agent_configurations')
+        .select('*')
+        .eq('id', email4.agent_configuration_id)
+        .single()
+      
+      if (agentConfig4) {
+        const agentConfigSnapshot4 = {
+          name: agentConfig4.name,
+          email_address: agentConfig4.email_address,
+          match_criteria: agentConfig4.match_criteria,
+          extraction_fields: agentConfig4.extraction_fields,
+          analyze_attachments: agentConfig4.analyze_attachments,
+          follow_links: agentConfig4.follow_links,
+          button_text_pattern: agentConfig4.button_text_pattern,
+        }
+        
+        const analyzedEmailSnapshot4 = {
+          email_subject: email4.email_subject,
+          email_from: email4.email_from,
+          email_date: email4.email_date,
+          reasoning: email4.reasoning,
+          confidence: email4.confidence,
+          matched: email4.matched,
+          extracted_data: email4.extracted_data,
+          data_by_source: email4.data_by_source,
+          scraped_urls: email4.scraped_urls,
+        }
+        
+        const savedDocId4 = randomUUID()
+        const { error: saveError4 } = await supabase
+          .from('kb_documents')
+          .insert({
+            id: savedDocId4,
+            user_id: USER_ID,
+            knowledge_base_id: UUIDs.kbInvestmentHistory,
+            title: email4.email_subject,
+            type: 'saved_email',
+            content: JSON.stringify(email4.extracted_data, null, 2),
+            analyzed_email_id: emailId4,
+            source_agent_config_id: agentConfig4.id,
+            agent_config_snapshot: agentConfigSnapshot4,
+            analyzed_email_snapshot: analyzedEmailSnapshot4,
+            notes: 'Saved from seed script - demonstrates snapshot functionality',
+          })
+        
+        if (saveError4) {
+          console.error('   ❌ Error saving email 4 to KB:', saveError4)
+        } else {
+          console.log(`   ✅ Saved email to KB: ${email4.email_subject}`)
+          
+          // Generate embedding for this saved email
+          const savedContent4 = JSON.stringify(email4.extracted_data, null, 2)
+          const chunks4 = chunkText(savedContent4)
+          
+          for (let i = 0; i < chunks4.length; i++) {
+            const embedding4 = await generateEmbedding(chunks4[i])
+            await supabase
+              .from('kb_chunks')
+              .insert({
+                user_id: USER_ID,
+                knowledge_base_id: UUIDs.kbInvestmentHistory,
+                document_id: savedDocId4,
+                content: chunks4[i],
+                chunk_index: i,
+                char_count: chunks4[i].length,
+                embedding: embedding4
+              })
+          }
+          
+          // Update document chunk count
+          await supabase
+            .from('kb_documents')
+            .update({
+              chunk_count: chunks4.length,
+              char_count: savedContent4.length
+            })
+            .eq('id', savedDocId4)
+        }
+      }
+    }
+    
+    // Update KB document counts (including newly saved emails)
+    for (const kb of knowledgeBases) {
+      const { count } = await supabase
+        .from('kb_documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('knowledge_base_id', kb.id)
+      
+      await supabase
+        .from('knowledge_bases')
+        .update({ document_count: count || 0 })
+        .eq('id', kb.id)
+    }
+    
+    // ============================================
     // SUMMARY
     // ============================================
     console.log('\n' + '='.repeat(70))
@@ -1012,15 +1318,21 @@ Recommendations:
     console.log(`\nCreated:`)
     console.log(`  📋 Agent Configurations: 2`)
     console.log(`  📚 Knowledge Bases: 4`)
-    console.log(`  📄 KB Documents: ${kbDocuments.length}`)
+    console.log(`  📄 KB Documents (text notes): ${kbDocuments.length}`)
+    console.log(`  💾 KB Documents (saved emails): 2`)
     console.log(`  📧 Analyzed Emails: ${analyzedEmails.length}`)
     console.log(`  🔗 Agent-KB Assignments: ${assignments.length}`)
     console.log(`\nAll embeddings have been generated and stored.`)
+    console.log(`\n✨ Special features demonstrated:`)
+    console.log(`  • Agent config snapshots saved in KB documents`)
+    console.log(`  • Analyzed email snapshots saved in KB documents`)
+    console.log(`  • Full scraped content stored in analyzed emails`)
     console.log(`\nYou can now:`)
     console.log(`  1. View agent configurations in the dashboard`)
     console.log(`  2. Browse knowledge bases and documents`)
     console.log(`  3. View analyzed emails in the results page`)
     console.log(`  4. Test semantic search with "Find Similar"`)
+    console.log(`  5. Check kb_documents to see snapshot metadata`)
     console.log(`\nUser ID: ${USER_ID}`)
     console.log('='.repeat(70) + '\n')
     

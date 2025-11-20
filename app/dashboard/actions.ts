@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 export type AgentConfiguration = {
   id: string
   user_id: string
+  name: string
   email_address: string
   match_criteria: string | null
   extraction_fields: string | null
@@ -42,6 +43,7 @@ export async function getConfigurations(): Promise<AgentConfiguration[]> {
 }
 
 export async function createConfiguration(formData: {
+  name: string
   email_address: string
   match_criteria: string
   extraction_fields: string
@@ -59,11 +61,24 @@ export async function createConfiguration(formData: {
     throw new Error('Not authenticated')
   }
 
+  // Check if name already exists for this user
+  const { data: existing } = await supabase
+    .from('agent_configurations')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('name', formData.name)
+    .single()
+
+  if (existing) {
+    throw new Error('An agent configuration with this name already exists')
+  }
+
   const { data, error} = await supabase
     .from('agent_configurations')
     .insert([
       {
         user_id: user.id,
+        name: formData.name,
         email_address: formData.email_address,
         match_criteria: formData.match_criteria,
         extraction_fields: formData.extraction_fields,
@@ -77,6 +92,10 @@ export async function createConfiguration(formData: {
 
   if (error) {
     console.error('Error creating configuration:', error)
+    // Check for unique constraint violation
+    if (error.code === '23505') {
+      throw new Error('An agent configuration with this name already exists')
+    }
     throw new Error('Failed to create configuration')
   }
 
@@ -87,6 +106,7 @@ export async function createConfiguration(formData: {
 export async function updateConfiguration(
   id: string,
   formData: {
+    name: string
     email_address: string
     match_criteria: string
     extraction_fields: string
@@ -105,9 +125,23 @@ export async function updateConfiguration(
     throw new Error('Not authenticated')
   }
 
+  // Check if name already exists for this user (excluding current config)
+  const { data: existing } = await supabase
+    .from('agent_configurations')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('name', formData.name)
+    .neq('id', id)
+    .single()
+
+  if (existing) {
+    throw new Error('An agent configuration with this name already exists')
+  }
+
   const { data, error } = await supabase
     .from('agent_configurations')
     .update({
+      name: formData.name,
       email_address: formData.email_address,
       match_criteria: formData.match_criteria,
       extraction_fields: formData.extraction_fields,
@@ -122,6 +156,10 @@ export async function updateConfiguration(
 
   if (error) {
     console.error('Error updating configuration:', error)
+    // Check for unique constraint violation
+    if (error.code === '23505') {
+      throw new Error('An agent configuration with this name already exists')
+    }
     throw new Error('Failed to update configuration')
   }
 
