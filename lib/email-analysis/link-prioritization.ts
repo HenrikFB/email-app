@@ -189,116 +189,117 @@ export async function prioritizeLinksWithAI(
     apiKey: process.env.OPENAI_API_KEY
   })
   
-  // Build prompt with all links and context
-  const linksDescription = links.slice(0, 50).map((link, i) => {
-    const buttonBadge = buttonTextPattern && new RegExp(buttonTextPattern, 'i').test(link.text)
-      ? ' ⭐ MATCHES BUTTON PATTERN'
-      : ''
-    
-    return `${i + 1}. URL: ${link.url}
-   Text: "${link.text}"
-   Type: ${link.isButton ? 'Button' : 'Link'}${buttonBadge}`
-  }).join('\n\n')
+  // Separate button pattern matches from regular links
+  const buttonPatternRegex = buttonTextPattern ? new RegExp(buttonTextPattern, 'i') : null
+  const buttonMatchLinks: ExtractedLink[] = []
+  const regularLinks: ExtractedLink[] = []
   
-  const prompt = `You are analyzing links from an email to determine which pages likely contain the information the user needs.
+  links.forEach(link => {
+    if (buttonPatternRegex && buttonPatternRegex.test(link.text)) {
+      buttonMatchLinks.push(link)
+    } else {
+      regularLinks.push(link)
+    }
+  })
+  
+  console.log(`   🎯 Button pattern matches: ${buttonMatchLinks.length}`)
+  console.log(`   📋 Other links: ${regularLinks.length}`)
+  
+  // Build link lists with clear separation
+  const buttonLinksDescription = buttonMatchLinks.length > 0
+    ? buttonMatchLinks.slice(0, 20).map((link, i) => {
+        // Clean URL display - extract domain and key params
+        const cleanUrl = link.url.length > 100 
+          ? link.url.substring(0, 100) + '...'
+          : link.url
+        
+        return `${i + 1}. 🎯 PRIORITY: "${link.text}" → ${cleanUrl}`
+      }).join('\n')
+    : ''
+  
+  const regularLinksDescription = regularLinks.slice(0, 30).map((link, i) => {
+    const cleanUrl = link.url.length > 100 
+      ? link.url.substring(0, 100) + '...'
+      : link.url
+    const number = buttonMatchLinks.length + i + 1
+    
+    return `${number}. "${link.text}" → ${cleanUrl}`
+  }).join('\n')
+  
+  const prompt = `You are selecting links from an email that will lead to pages containing specific information.
 
-**User's Goal**:
-${emailIntent?.refinedGoal || matchCriteria}
+**USER'S GOAL**: ${emailIntent?.refinedGoal || matchCriteria}
 
-${emailIntent?.keyTerms && emailIntent.keyTerms.length > 0 ? `**Key Terms from Email** (look for pages with these specifics):
-${emailIntent.keyTerms.join(', ')}
-` : ''}
+${emailIntent?.keyTerms && emailIntent.keyTerms.length > 0 ? `**KEY TERMS TO FIND**: ${emailIntent.keyTerms.join(', ')}` : ''}
 
-**What User Wants to Extract**:
-${extractionFields}
+**WHAT TO EXTRACT**: ${extractionFields}
 
-${emailIntent?.expectedContent ? `**Expected Page Content**:
-${emailIntent.expectedContent}
-` : ''}
+${linkGuidance ? `**LINK GUIDANCE**: ${linkGuidance}\n` : ''}
 
-${linkGuidance ? `**Link Selection Guidance**:
-${linkGuidance}
-` : ''}
+${buttonTextPattern ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  CRITICAL: BUTTON PATTERN PRIORITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${buttonTextPattern ? `**Priority Signal**: Links with text matching "${buttonTextPattern}" are marked with ⭐ below. These are strong candidates.
-` : ''}
+The user has configured "${buttonTextPattern}" as their PRIMARY LINK PATTERN.
 
-${extractionExamples ? `
----
-## Extraction Target Examples
+Links marked with 🎯 match this pattern and should be STRONGLY PREFERRED.
+These are the MAIN content links the user wants analyzed.
 
-The user has provided these examples of the information they want to extract:
-${extractionExamples}
+Unless a 🎯 link is CLEARLY irrelevant (like "unsubscribe" or "privacy policy"),
+you should SELECT IT.
 
-When evaluating links, ask yourself: Would this link likely lead to a page containing information matching these examples?
-
-For instance, if examples show specific technologies like ".NET" and "Python", prioritize links that would lead to pages mentioning these technologies - even if the link text itself is generic like "Software Developer".
-
-If examples show specific investment amounts or sectors, prioritize links to pages that would have those details - even if the link text just says "Investment Opportunity".
----
+Regular links are SECONDARY - only select if they clearly relate to the goal.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 
 ${analysisFeedback ? `
----
-## CRITICAL: Past Link Selection Issues
-
-The user has noted these problems with previous link selections:
+⚠️  PAST MISTAKES TO AVOID:
 ${analysisFeedback}
 
-Actively AVOID repeating these mistakes:
-- If feedback mentions over-including certain types of links, be MORE CONSERVATIVE about those
-- If feedback mentions missing relevant links, be MORE INCLUSIVE of similar patterns
-- If feedback mentions including wrong topics (e.g., "includes PLC/SCADA when I want software"), STRICTLY EXCLUDE those topics
-
-This is MANDATORY feedback you MUST incorporate into your selection criteria.
----
+Do NOT repeat these errors. This is critical feedback from the user.
 ` : ''}
 
-**All Links Found** (${Math.min(links.length, 50)} shown):
-${linksDescription}
+**AVAILABLE LINKS**:
 
-${links.length > 50 ? `\n... and ${links.length - 50} more links (truncated for brevity)\n` : ''}
+${buttonMatchLinks.length > 0 ? `🎯 PRIORITY LINKS (button pattern matches):
+${buttonLinksDescription}
 
-**CRITICAL UNDERSTANDING**:
-Link text is often GENERIC (e.g., "Software Developer", "IT jobs", "View Details", "Learn More").
-The SPECIFIC information the user wants (${emailIntent?.keyTerms?.slice(0, 3).join(', ') || 'key terms'}) is usually INSIDE the pages, not in the link text.
+` : ''}REGULAR LINKS:
+${regularLinksDescription}
 
-**Your Task**:
-Select links that are likely to lead to pages containing the specific information mentioned in "Key Terms" and "User's Goal".
+${links.length > (buttonMatchLinks.length + 30) ? `\n... and ${links.length - buttonMatchLinks.length - 30} more links not shown\n` : ''}
 
-**Selection Reasoning (think step-by-step)**:
-1. ✅ Generic job/opportunity/content links MIGHT contain the specifics - include them if they could relate to the goal
-2. ✅ Links marked with ⭐ (button pattern) are strong signals - prioritize these
-3. ✅ Think about the user's END GOAL and what pages would have that information
-4. ${extractionExamples ? '✅ Would this link lead to a page with data matching the example format?' : ''}
-5. ${analysisFeedback ? '✅ Does this selection avoid the problems mentioned in the feedback?' : ''}
-6. ❌ Skip: Truly irrelevant links (homepage, login, social media, unsubscribe, about, terms, privacy, generic navigation)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SELECTION RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Examples**:
-- Link text: "Software Developer Position" (generic) → SELECT if user wants .NET/JavaScript jobs (specifics likely inside)
-- Link text: "Investment Opportunity" (generic) → SELECT if user wants fintech/equity investments (specifics likely inside)
-- Link text: "View Job" or "Se jobbet" (generic action) → SELECT if it could relate to user's goal
-- Link text: "About Us" or "Privacy Policy" → SKIP (truly irrelevant)
+1. 🎯 STRONGLY PREFER button pattern matches - these are the primary content
+2. ✅ Links with job/product/content-specific words are likely relevant
+3. ❌ SKIP: navigation, login, settings, unsubscribe, social media, about/terms/privacy, company homepages
+4. 💭 THINK: Would this page contain the KEY TERMS and specific data the user needs?
 
-**Return Format**: 
-- Comma-separated numbers in order of relevance (e.g., "5, 12, 3, 18, 7")
-- If NO relevant links: Return exactly "NONE"
-- NO explanations, just numbers or "NONE"
+**CRITICAL**: Link text is often generic ("View Details", "Se jobbet", "Software Developer").
+The SPECIFICS (${emailIntent?.keyTerms?.slice(0, 3).join(', ') || 'technologies, amounts, details'}) are INSIDE the pages.
 
-Response:`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**RESPOND**: Comma-separated numbers ONLY (e.g., "1, 2, 5, 8") or "NONE"
+Put button pattern matches FIRST, then other relevant links.
+NO explanations, just numbers or "NONE":`
 
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{
         role: 'system',
-        content: 'You are an expert at understanding user intent and identifying which pages likely contain specific information. You understand that link text is often generic but the specifics are inside the pages. Use reasoning about the user\'s end goal to select relevant links. Return ONLY comma-separated numbers or "NONE". No explanations.'
+        content: 'You are an expert link selector. You STRONGLY PRIORITIZE links marked with 🎯 (button pattern) as these are the user\'s configured primary content. Link text is often generic but specifics are inside. Think about the end goal and what pages would contain the key terms. Return ONLY comma-separated numbers (button pattern first) or "NONE". NO text, NO explanations.'
       }, {
         role: 'user',
         content: prompt
       }],
       temperature: 0,
-      max_tokens: 200,
+      max_tokens: 150,
     })
     
     const content = response.choices[0].message.content?.trim() || 'NONE'

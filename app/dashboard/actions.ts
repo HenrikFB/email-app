@@ -222,3 +222,60 @@ export async function deleteConfiguration(id: string) {
   revalidatePath('/dashboard')
 }
 
+export async function duplicateConfiguration(id: string, newName: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  // Fetch the original configuration
+  const { data: original, error: fetchError } = await supabase
+    .from('agent_configurations')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (fetchError || !original) {
+    console.error('Error fetching configuration:', fetchError)
+    throw new Error('Failed to fetch configuration to duplicate')
+  }
+
+  // Create duplicate with new name (omit id, created_at, updated_at)
+  const { data, error: insertError } = await supabase
+    .from('agent_configurations')
+    .insert([
+      {
+        user_id: user.id,
+        name: newName,
+        email_address: original.email_address,
+        match_criteria: original.match_criteria,
+        extraction_fields: original.extraction_fields,
+        analyze_attachments: original.analyze_attachments,
+        follow_links: original.follow_links,
+        button_text_pattern: original.button_text_pattern,
+        user_intent: original.user_intent,
+        link_selection_guidance: original.link_selection_guidance,
+        max_links_to_scrape: original.max_links_to_scrape,
+        content_retrieval_strategy: original.content_retrieval_strategy,
+        extraction_examples: original.extraction_examples,
+        analysis_feedback: original.analysis_feedback,
+      },
+    ])
+    .select()
+    .single()
+
+  if (insertError) {
+    console.error('Error duplicating configuration:', insertError)
+    throw new Error('Failed to duplicate configuration')
+  }
+
+  revalidatePath('/dashboard')
+  return data as AgentConfiguration
+}
+

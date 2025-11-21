@@ -128,7 +128,18 @@ export async function analyzeEmail(
     }
     
     // Initialize debug run
-    debugRunId = initDebugRun(input.emailId, email.subject)
+    debugRunId = initDebugRun(input.emailId, email.subject, {
+      match_criteria: input.agentConfig.match_criteria,
+      extraction_fields: input.agentConfig.extraction_fields,
+      user_intent: input.agentConfig.user_intent,
+      link_selection_guidance: input.agentConfig.link_selection_guidance,
+      extraction_examples: input.agentConfig.extraction_examples,
+      analysis_feedback: input.agentConfig.analysis_feedback,
+      button_text_pattern: input.agentConfig.button_text_pattern,
+      follow_links: input.agentConfig.follow_links,
+      max_links_to_scrape: input.agentConfig.max_links_to_scrape,
+      content_retrieval_strategy: input.agentConfig.content_retrieval_strategy,
+    })
     debugData.runId = debugRunId
     debugData.emailId = input.emailId
     debugData.emailSubject = email.subject
@@ -190,7 +201,6 @@ export async function analyzeEmail(
         input.agentConfig.link_selection_guidance,
         input.agentConfig.extraction_examples,
         input.agentConfig.analysis_feedback
-        input.agentConfig.link_selection_guidance
       )
       
       console.log(`✅ Intent extracted:`)
@@ -200,10 +210,22 @@ export async function analyzeEmail(
       
       debugData.emailIntent = emailIntent
       
+      // Save detailed intent extraction with input context
       logDebugStep(debugRunId, 2.5, 'intent-extraction', {
-        refinedGoal: emailIntent.refinedGoal,
-        keyTerms: emailIntent.keyTerms,
-        expectedContent: emailIntent.expectedContent
+        input_context: {
+          emailSubject: email.subject,
+          emailContentLength: emailPlainText.length,
+          user_intent_provided: !!input.agentConfig.user_intent,
+          link_guidance_provided: !!input.agentConfig.link_selection_guidance,
+          extraction_examples_provided: !!input.agentConfig.extraction_examples,
+          analysis_feedback_provided: !!input.agentConfig.analysis_feedback,
+        },
+        extracted_intent: {
+          refinedGoal: emailIntent.refinedGoal,
+          keyTerms: emailIntent.keyTerms,
+          expectedContent: emailIntent.expectedContent
+        },
+        reasoning: 'This intent guides link selection by understanding what the user is actually looking for beyond surface-level keywords'
       })
     } else {
       console.log('\n⏭️  STEP 2.5: Skipping intent extraction (follow_links=false or no links found)')
@@ -255,11 +277,28 @@ export async function analyzeEmail(
       }
       
       logDebugStep(debugRunId, 3, 'ai-link-prioritization', {
-        totalLinks: allLinks.length,
-        selectedCount: selectedLinks.length,
-        duplicatesRemoved,
-        selectedUrls: selectedLinks,
-        reasoning: prioritization.reasoning
+        input_to_ai: {
+          total_links: allLinks.length,
+          email_intent: emailIntent,
+          match_criteria: input.agentConfig.match_criteria,
+          extraction_fields: input.agentConfig.extraction_fields,
+          button_text_pattern: input.agentConfig.button_text_pattern || null,
+          link_selection_guidance: input.agentConfig.link_selection_guidance || null,
+          extraction_examples_provided: !!input.agentConfig.extraction_examples,
+          analysis_feedback_provided: !!input.agentConfig.analysis_feedback,
+        },
+        ai_output: {
+          selected_count_raw: prioritization.selectedUrls.length,
+          selected_urls: prioritization.selectedUrls,
+          ai_reasoning: prioritization.reasoning,
+        },
+        post_processing: {
+          duplicates_removed: duplicatesRemoved,
+          max_links_to_scrape: maxLinks,
+          final_count: selectedLinks.length,
+          final_urls: selectedLinks,
+        },
+        reasoning_explanation: 'AI evaluated each link based on email intent, user criteria, and guidance to select most relevant URLs. Then limited to max_links_to_scrape.'
       })
     } else {
       console.log('\n⏭️  STEP 3: Skipping link scraping (follow_links=false or no links found)')
@@ -420,9 +459,28 @@ export async function analyzeEmail(
     }))
     
     logDebugStep(debugRunId, 6, 'chunk-analysis-complete', {
-      totalChunks: chunkResults.length,
-      matchedChunks: chunkResults.filter(r => r.matched).length,
-      results: debugData.chunkAnalysisResults
+      input_to_ai: {
+        total_chunks: chunkResults.length,
+        match_criteria: input.agentConfig.match_criteria,
+        extraction_fields: input.agentConfig.extraction_fields,
+        user_intent: input.agentConfig.user_intent || null,
+        extraction_examples: input.agentConfig.extraction_examples || null,
+        analysis_feedback: input.agentConfig.analysis_feedback || null,
+        rag_context_provided: !!ragContext,
+        rag_context_length: ragContext?.length || 0,
+      },
+      ai_output: {
+        total_chunks_analyzed: chunkResults.length,
+        matched_chunks: chunkResults.filter(r => r.matched).length,
+        chunk_results: debugData.chunkAnalysisResults,
+      },
+      reasoning_explanation: 'Each chunk was analyzed with full agent config context including user_intent, examples, and feedback. AI extracted data matching criteria and returned confidence scores.',
+      features_used_in_analysis: {
+        user_intent_guided_extraction: !!input.agentConfig.user_intent,
+        examples_guided_format: !!input.agentConfig.extraction_examples,
+        feedback_prevented_errors: !!input.agentConfig.analysis_feedback,
+        rag_provided_context: !!ragContext,
+      }
     })
     
     // ========== STEP 7: Aggregate Results ==========

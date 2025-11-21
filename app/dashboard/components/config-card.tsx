@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { deleteConfiguration, type AgentConfiguration } from '../actions'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { deleteConfiguration, duplicateConfiguration, type AgentConfiguration } from '../actions'
 import ConfigForm from './config-form'
 
 interface ConfigCardProps {
@@ -15,6 +17,9 @@ export default function ConfigCard({ config }: ConfigCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [duplicateName, setDuplicateName] = useState(`${config.name} (Copy)`)
+  const [isDuplicating, setIsDuplicating] = useState(false)
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -27,6 +32,23 @@ export default function ConfigCard({ config }: ConfigCardProps) {
     }
   }
 
+  const handleDuplicate = async () => {
+    if (!duplicateName.trim()) {
+      return
+    }
+    
+    setIsDuplicating(true)
+    try {
+      await duplicateConfiguration(config.id, duplicateName.trim())
+      setShowDuplicateDialog(false)
+      setDuplicateName(`${config.name} (Copy)`)
+    } catch (error) {
+      console.error('Error duplicating configuration:', error)
+    } finally {
+      setIsDuplicating(false)
+    }
+  }
+
   if (isEditing) {
     return (
       <ConfigForm
@@ -34,6 +56,59 @@ export default function ConfigCard({ config }: ConfigCardProps) {
         onSuccess={() => setIsEditing(false)}
         onCancel={() => setIsEditing(false)}
       />
+    )
+  }
+
+  if (showDuplicateDialog) {
+    return (
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardHeader>
+          <CardTitle className="text-blue-900">Duplicate Configuration</CardTitle>
+          <CardDescription className="text-blue-700">
+            Create a copy of this configuration with a new name. All settings will be copied.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="duplicateName">New Configuration Name *</Label>
+            <Input
+              id="duplicateName"
+              type="text"
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              placeholder="E.g., Jobs - Jobindex"
+              disabled={isDuplicating}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && duplicateName.trim()) {
+                  handleDuplicate()
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Original: <span className="font-medium">{config.name}</span>
+            </p>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end space-x-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowDuplicateDialog(false)
+              setDuplicateName(`${config.name} (Copy)`)
+            }}
+            disabled={isDuplicating}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDuplicate}
+            disabled={isDuplicating || !duplicateName.trim()}
+          >
+            {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+          </Button>
+        </CardFooter>
+      </Card>
     )
   }
 
@@ -154,16 +229,24 @@ export default function ConfigCard({ config }: ConfigCardProps) {
           )}
         </div>
       </CardContent>
-      <CardFooter className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={() => setIsEditing(true)}>
-          Edit
-        </Button>
-        <Button
-          variant="destructive"
-          onClick={() => setShowDeleteConfirm(true)}
+      <CardFooter className="flex justify-between">
+        <Button 
+          variant="secondary" 
+          onClick={() => setShowDuplicateDialog(true)}
         >
-          Delete
+          Duplicate
         </Button>
+        <div className="flex space-x-2">
+          <Button variant="outline" onClick={() => setIsEditing(true)}>
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Delete
+          </Button>
+        </div>
       </CardFooter>
     </Card>
   )
