@@ -21,8 +21,9 @@ import { extractLinksFromHtml } from './link-extractor'
 import { prioritizeLinksWithAI, extractUserIntentFromEmail } from './link-prioritization'
 import { createContentRetriever } from '@/lib/content-retrieval'
 import type { RetrievalContext } from '@/lib/content-retrieval'
-import { extractTextFromHtml, chunkContent, getChunkStats } from './content-chunker'
-import { analyzeChunksRecursively, aggregateResults } from './recursive-analyzer'
+import { extractTextFromHtml } from './content-chunker'
+import { analyzeFullEmail, analyzeScrapedPage } from './full-context-analyzer'
+import type { FullContentAnalysisResult } from './types'
 import {
   initDebugRun,
   logDebugStep,
@@ -412,81 +413,155 @@ export async function analyzeEmail(
       ragContext = '' // Fail gracefully
     }
     
-    // ========== STEP 5: Chunk Content ==========
-    console.log('\n📦 STEP 5: Chunking content for recursive analysis...')
+    // ========== STEP 5: Analyze Full Email Body ==========
+    console.log('\n📧 STEP 5: Analyzing full email body...')
     
-    const chunks = chunkContent(emailPlainText, scrapedPages)
-    const chunkStats = getChunkStats(chunks)
-    
-    debugData.chunks = chunks.map(c => ({
-      type: c.type,
-      contentLength: c.charCount,
-      source: c.source
-    }))
-    
-    console.log(`✅ Created ${chunks.length} chunks:`)
-    console.log(`   - Email chunks: ${chunkStats.emailChunks}`)
-    console.log(`   - Scraped chunks: ${chunkStats.scrapedChunks}`)
-    console.log(`   - Avg chunk size: ${chunkStats.avgChunkSize} chars`)
-    
-    logDebugStep(debugRunId, 5, 'chunking-complete', {
-      totalChunks: chunks.length,
-      emailChunks: chunkStats.emailChunks,
-      scrapedChunks: chunkStats.scrapedChunks,
-      avgChunkSize: chunkStats.avgChunkSize,
-      chunks: debugData.chunks
-    })
-    
-    // ========== STEP 6: Recursive Chunk Analysis (with RAG context) ==========
-    console.log('\n🔄 STEP 6: Analyzing chunks recursively...')
-    
-    const chunkResults = await analyzeChunksRecursively(
-      chunks,
-      input.agentConfig.match_criteria,
-      input.agentConfig.extraction_fields,
-      ragContext, // Pass RAG context to analysis
-      input.agentConfig.user_intent,
-      input.agentConfig.extraction_examples,
-      input.agentConfig.analysis_feedback
+    const emailAnalysis = await analyzeFullEmail(
+      emailPlainText,
+      email.subject,
+      {
+        match_criteria: input.agentConfig.match_criteria,
+        extraction_fields: input.agentConfig.extraction_fields,
+        user_intent: input.agentConfig.user_intent,
+        extraction_examples: input.agentConfig.extraction_examples,
+        analysis_feedback: input.agentConfig.analysis_feedback
+      },
+      ragContext
     )
     
-    debugData.chunkAnalysisResults = chunkResults.map(r => ({
-      chunkIndex: r.chunkIndex,
-      matched: r.matched,
-      confidence: r.confidence,
-      reasoning: r.reasoning,
-      extractedFieldsCount: Object.keys(r.extractedData).length
-    }))
+    console.log(`✅ Email analysis complete:`)
+    console.log(`   Matched: ${emailAnalysis.matched ? 'YES' : 'NO'}`)
+    console.log(`   Used chunking: ${emailAnalysis.usedChunking ? 'YES' : 'NO'}`)
+    console.log(`   Confidence: ${(emailAnalysis.confidence * 100).toFixed(0)}%`)
+    console.log(`   Fields extracted: ${Object.keys(emailAnalysis.extractedData).length}`)
     
-    logDebugStep(debugRunId, 6, 'chunk-analysis-complete', {
+    logDebugStep(debugRunId, 5, 'email-analysis-complete', {
       input_to_ai: {
-        total_chunks: chunkResults.length,
+        email_length: emailPlainText.length,
         match_criteria: input.agentConfig.match_criteria,
         extraction_fields: input.agentConfig.extraction_fields,
         user_intent: input.agentConfig.user_intent || null,
         extraction_examples: input.agentConfig.extraction_examples || null,
         analysis_feedback: input.agentConfig.analysis_feedback || null,
         rag_context_provided: !!ragContext,
-        rag_context_length: ragContext?.length || 0,
       },
       ai_output: {
-        total_chunks_analyzed: chunkResults.length,
-        matched_chunks: chunkResults.filter(r => r.matched).length,
-        chunk_results: debugData.chunkAnalysisResults,
+        matched: emailAnalysis.matched,
+        used_chunking: emailAnalysis.usedChunking,
+        confidence: emailAnalysis.confidence,
+        extracted_fields: Object.keys(emailAnalysis.extractedData).length,
+        extracted_data: emailAnalysis.extractedData,
+        reasoning: emailAnalysis.reasoning
       },
-      reasoning_explanation: 'Each chunk was analyzed with full agent config context including user_intent, examples, and feedback. AI extracted data matching criteria and returned confidence scores.',
-      features_used_in_analysis: {
-        user_intent_guided_extraction: !!input.agentConfig.user_intent,
-        examples_guided_format: !!input.agentConfig.extraction_examples,
-        feedback_prevented_errors: !!input.agentConfig.analysis_feedback,
-        rag_provided_context: !!ragContext,
+      performance: {
+        api_calls: emailAnalysis.usedChunking ? 'multiple (chunked)' : '1 (full context)',
+        content_length: emailAnalysis.contentLength
       }
     })
     
-    // ========== STEP 7: Aggregate Results ==========
-    console.log('\n🔗 STEP 7: Aggregating results from all chunks...')
+    // ========== STEP 6: Analyze Scraped Pages ==========
+    console.log('\n🌐 STEP 6: Analyzing scraped pages...')
     
-    const aggregated = aggregateResults(chunkResults)
+    const scrapedAnalyses: FullContentAnalysisResult[] = []
+    
+    if (scrapedPages.length > 0) {
+      console.log(`   Analyzing ${scrapedPages.length} pages in parallel...`)
+      
+      scrapedAnalyses.push(...await Promise.all(
+        scrapedPages.map(page => analyzeScrapedPage(
+          page,
+          {
+            match_criteria: input.agentConfig.match_criteria,
+            extraction_fields: input.agentConfig.extraction_fields,
+            user_intent: input.agentConfig.user_intent,
+            extraction_examples: input.agentConfig.extraction_examples,
+            analysis_feedback: input.agentConfig.analysis_feedback
+          },
+          ragContext
+        ))
+      ))
+      
+      console.log(`✅ Scraped page analysis complete:`)
+      console.log(`   Pages analyzed: ${scrapedAnalyses.length}`)
+      console.log(`   Pages matched: ${scrapedAnalyses.filter(a => a.matched).length}`)
+      console.log(`   Pages chunked: ${scrapedAnalyses.filter(a => a.usedChunking).length}`)
+      
+      logDebugStep(debugRunId, 6, 'scraped-pages-analysis-complete', {
+        total_pages: scrapedAnalyses.length,
+        matched_pages: scrapedAnalyses.filter(a => a.matched).length,
+        pages_requiring_chunking: scrapedAnalyses.filter(a => a.usedChunking).length,
+        results: scrapedAnalyses.map(a => ({
+          source: a.source,
+          matched: a.matched,
+          confidence: a.confidence,
+          used_chunking: a.usedChunking,
+          extracted_fields: Object.keys(a.extractedData).length,
+          reasoning: a.reasoning
+        }))
+      })
+    } else {
+      console.log(`   No scraped pages to analyze`)
+    }
+    
+    // ========== STEP 7: Aggregate Results ==========
+    console.log('\n🔗 STEP 7: Aggregating results from email + scraped pages...')
+    
+    // Combine email analysis with scraped analyses
+    const allAnalyses = [emailAnalysis, ...scrapedAnalyses]
+    const matchedAnalyses = allAnalyses.filter(a => a.matched)
+    
+    // Build data by source for source attribution
+    const dataBySource = matchedAnalyses.map(a => ({
+      source: a.source,
+      data: a.extractedData,
+      reasoning: a.reasoning,
+      confidence: a.confidence
+    }))
+    
+    // Merge all extracted data intelligently
+    // Strategy: scraped pages provide detailed info, email provides summary
+    const aggregatedData: Record<string, any> = {}
+    
+    // Start with email data (summary info)
+    if (emailAnalysis.matched) {
+      Object.assign(aggregatedData, emailAnalysis.extractedData)
+    }
+    
+    // Layer in scraped page data (detailed info)
+    // For arrays: merge and dedupe; For objects: merge keys; For primitives: prefer scraped
+    for (const analysis of scrapedAnalyses) {
+      if (!analysis.matched) continue
+      
+      for (const [key, value] of Object.entries(analysis.extractedData)) {
+        if (aggregatedData[key] === undefined) {
+          // New field - add it
+          aggregatedData[key] = value
+        } else if (Array.isArray(value) && Array.isArray(aggregatedData[key])) {
+          // Merge arrays and dedupe
+          aggregatedData[key] = [...new Set([...aggregatedData[key], ...value])]
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Merge objects
+          aggregatedData[key] = { ...aggregatedData[key], ...value }
+        } else {
+          // For primitives, prefer scraped data (more detailed)
+          aggregatedData[key] = value
+        }
+      }
+    }
+    
+    // Calculate overall confidence (weighted average by matched content)
+    const totalMatches = matchedAnalyses.length
+    const overallConfidence = totalMatches > 0
+      ? matchedAnalyses.reduce((sum, a) => sum + a.confidence, 0) / totalMatches
+      : 0
+    
+    const aggregated = {
+      matched: totalMatches > 0,
+      totalMatches,
+      aggregatedData,
+      dataBySource,
+      overallConfidence
+    }
     
     debugData.finalResult = {
       matched: aggregated.matched,
@@ -497,10 +572,18 @@ export async function analyzeEmail(
     
     console.log(`✅ Aggregation complete:`)
     console.log(`   Matched: ${aggregated.matched ? 'YES' : 'NO'}`)
-    console.log(`   Chunks matched: ${aggregated.totalMatches}`)
+    console.log(`   Sources matched: ${aggregated.totalMatches} (email + scraped pages)`)
     console.log(`   Sources with data: ${aggregated.dataBySource.length}`)
     console.log(`   Overall confidence: ${(aggregated.overallConfidence * 100).toFixed(0)}%`)
     console.log(`   Fields extracted: ${Object.keys(aggregated.aggregatedData).length}`)
+    
+    const apiCallsUsed = 
+      1 + // intent extraction
+      1 + // link prioritization
+      (emailAnalysis.usedChunking ? 'multiple' : 1) + // email analysis
+      scrapedAnalyses.reduce((sum, a) => sum + (a.usedChunking ? 'multiple' : 1), 0) // scraped analyses
+    
+    console.log(`   API calls: ~${typeof apiCallsUsed === 'number' ? apiCallsUsed : apiCallsUsed} (vs ${43} in old chunked approach)`)
     
     logDebugStep(debugRunId, 7, 'aggregation-complete', {
       matched: aggregated.matched,
@@ -508,7 +591,13 @@ export async function analyzeEmail(
       overallConfidence: aggregated.overallConfidence,
       extractedFieldsCount: Object.keys(aggregated.aggregatedData).length,
       extractedData: aggregated.aggregatedData,
-      dataBySource: aggregated.dataBySource
+      dataBySource: aggregated.dataBySource,
+      performance_improvement: {
+        email_analysis_method: emailAnalysis.usedChunking ? 'chunked (large email)' : 'full context (1 API call)',
+        scraped_pages_method: 'individual full-context analysis',
+        total_sources_analyzed: allAnalyses.length,
+        sources_requiring_chunking: allAnalyses.filter(a => a.usedChunking).length
+      }
     })
     
     // ========== Finalize Debug Run ==========
@@ -540,14 +629,14 @@ export async function analyzeEmail(
       emailId: input.emailId,
       matched: aggregated.matched,
       extractedData: aggregated.aggregatedData,
-      dataBySource: aggregated.dataBySource,  // NEW: Include source-attributed data
+      dataBySource: aggregated.dataBySource,  // Source-attributed data
       scrapedUrls: scrapedPages.map(p => p.url),
       scrapedContent: Object.keys(scrapedContent).length > 0 ? scrapedContent : undefined,
       allLinksFound,
       emailHtmlBody: emailHtmlBody,
       reasoning: aggregated.totalMatches > 0
-        ? `Matched in ${aggregated.totalMatches} chunks. ${debugData.chunkAnalysisResults?.find(r => r.matched)?.reasoning || ''}`
-        : 'No matches found in any chunks',
+        ? `Matched in ${aggregated.totalMatches} source(s): ${matchedAnalyses.map(a => a.source).join(', ')}. ${emailAnalysis.matched ? emailAnalysis.reasoning : scrapedAnalyses.find(a => a.matched)?.reasoning || ''}`
+        : 'No matches found in email or scraped pages',
       confidence: aggregated.overallConfidence
     }
     

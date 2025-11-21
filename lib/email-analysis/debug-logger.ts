@@ -64,22 +64,30 @@ export interface AnalysisDebugData {
     title?: string
   }>
   
-  // Step 5: Chunking
-  chunks: Array<{
-    type: 'email' | 'scraped'
-    contentLength: number
-    source?: string
-  }>
-  
-  // Step 6: Recursive analysis
-  chunkAnalysisPrompt?: string  // Sample of the prompt used
-  chunkAnalysisResults: Array<{
-    chunkIndex: number
+  // Step 5: Email Analysis (NEW - full context)
+  emailAnalysis?: {
     matched: boolean
+    usedChunking: boolean
     confidence: number
+    extractedData: Record<string, any>
     reasoning: string
-    extractedFieldsCount: number
-  }>
+    contentLength: number
+  }
+  
+  // Step 6: Scraped Pages Analysis (NEW - parallel full-context)
+  scrapedPagesAnalysis?: {
+    totalPages: number
+    matchedPages: number
+    pagesRequiringChunking: number
+    results: Array<{
+      source: string
+      matched: boolean
+      confidence: number
+      used_chunking: boolean
+      extracted_fields: number
+      reasoning: string
+    }>
+  }
   
   // Step 7: Final aggregation
   finalResult: {
@@ -87,6 +95,11 @@ export interface AnalysisDebugData {
     totalMatches: number
     aggregatedData: Record<string, any>
     overallConfidence: number
+    dataBySource?: Array<{
+      source: string
+      data: Record<string, any>
+      confidence: number
+    }>
   }
 }
 
@@ -370,36 +383,59 @@ ${data.scrapingAttempts?.some(a => a.source) ? `
 
 ---
 
-## Step 5: Content Chunking
-- **Total Chunks Created**: ${data.chunks?.length || 0}
-- **Email Chunks**: ${data.chunks?.filter(c => c.type === 'email').length || 0}
-- **Scraped Content Chunks**: ${data.chunks?.filter(c => c.type === 'scraped').length || 0}
+## Step 5: Full Email Body Analysis (NEW OPTIMIZED APPROACH!)
 
-**Why Chunking**: Large content is broken into manageable pieces so the AI can analyze each thoroughly without token limits.
+**What Changed**: Instead of chunking the email into many pieces, we now analyze the FULL email body in ONE API call when possible.
+
+**Performance**:
+- **Email Length**: ${data.emailBodyLength} chars
+- **Used Chunking**: ${(data as any).emailAnalysis?.usedChunking ? '⚠️ YES (email was exceptionally large)' : '✅ NO (analyzed in 1 API call)'}
+- **API Calls**: ${(data as any).emailAnalysis?.usedChunking ? 'Multiple (chunked fallback)' : '1 (full context) 🎉'}
+
+**Inputs to AI**:
+- Match criteria: ✅ Provided
+- Extraction fields: ✅ Provided
+- User intent: ${agentConfig.user_intent ? '✅ AI knows WHY user needs data' : '❌ Not provided'}
+- Extraction examples: ${agentConfig.extraction_examples ? '✅ AI knows EXACT output format' : '❌ Not provided'}
+- Analysis feedback: ${agentConfig.analysis_feedback ? '✅ AI avoids documented mistakes' : '❌ Not provided'}
+- RAG context: ${(data as any).ragContext ? '✅ Provided from knowledge bases' : '❌ Not used'}
+
+**Email Analysis Result**:
+- **Matched**: ${(data as any).emailAnalysis?.matched ? '✅ YES' : '❌ NO'}
+- **Confidence**: ${(data as any).emailAnalysis?.confidence ? ((data as any).emailAnalysis.confidence * 100).toFixed(1) + '%' : 'N/A'}
+- **Fields Extracted**: ${(data as any).emailAnalysis?.extractedData ? Object.keys((data as any).emailAnalysis.extractedData).length : 0}
 
 ---
 
-## Step 6: Recursive Chunk Analysis (WHERE EXTRACTION HAPPENS)
+## Step 6: Scraped Pages Analysis (PARALLEL FULL-CONTEXT)
 
-**Inputs to AI for EACH chunk**:
-- Match criteria: ✅ Provided
-- Extraction fields: ✅ Provided  
-- User intent: ${agentConfig.user_intent ? '✅ AI knows WHY user needs data' : '❌ Not provided (AI doesn\'t know the "why")'}
-- Extraction examples: ${agentConfig.extraction_examples ? '✅ AI knows EXACT output format' : '❌ Not provided (AI guesses format)'}
-- Analysis feedback: ${agentConfig.analysis_feedback ? '✅ AI avoids documented mistakes' : '❌ Not provided (AI may repeat errors)'}
-- RAG context: ${(data as any).ragContextLength ? '✅ Provided from knowledge bases' : '❌ Not used'}
+**What Changed**: Each scraped page is now analyzed INDIVIDUALLY and IN PARALLEL, not chunked.
 
-**Results**:
-- **Chunks Analyzed**: ${data.chunkAnalysisResults?.length || 0}
-- **Chunks Matched**: ${data.chunkAnalysisResults?.filter(r => r.matched).length || 0}
-- **Average Confidence**: ${data.chunkAnalysisResults?.length 
-    ? (data.chunkAnalysisResults.reduce((sum, r) => sum + r.confidence, 0) / data.chunkAnalysisResults.length * 100).toFixed(1) + '%'
-    : 'N/A'}
+**Performance**:
+- **Pages to Analyze**: ${(data as any).scrapedPagesAnalysis?.totalPages || data.scrapedContent?.length || 0}
+- **Pages Matched**: ${(data as any).scrapedPagesAnalysis?.matchedPages || 0}
+- **Pages Requiring Chunking**: ${(data as any).scrapedPagesAnalysis?.pagesRequiringChunking || 0} (only for very large pages)
+- **API Calls**: ${(data as any).scrapedPagesAnalysis?.totalPages || data.scrapedContent?.length || 0} calls (1 per page, all in parallel) 🚀
+
+**Why This is Better**:
+- ✅ Each page analyzed in full context (AI sees complete page, not fragments)
+- ✅ Better source attribution (know exactly which URL provided which data)
+- ✅ Faster (parallel processing)
+- ✅ Fewer total API calls (no chunking unless necessary)
+
+**Results by Source**:
+${(data as any).scrapedPagesAnalysis?.results?.map((r: any, i: number) => `
+${i + 1}. **${r.source}**
+   - Matched: ${r.matched ? '✅ YES' : '❌ NO'}
+   - Confidence: ${(r.confidence * 100).toFixed(1)}%
+   - Used Chunking: ${r.used_chunking ? '⚠️ YES' : '✅ NO'}
+   - Reasoning: ${r.reasoning.substring(0, 150)}${r.reasoning.length > 150 ? '...' : ''}
+`).join('') || '(No scraped pages analyzed)'}
 
 **Features Impact**:
-${agentConfig.user_intent ? '✅ User Intent guided AI to extract data aligned with user\'s end goal' : ''}
-${agentConfig.extraction_examples ? '✅ Extraction Examples ensured consistent output format' : ''}
-${agentConfig.analysis_feedback ? '✅ Analysis Feedback prevented AI from repeating past mistakes' : ''}
+${agentConfig.user_intent ? '✅ User Intent guided AI to extract data aligned with user\'s end goal\n' : ''}
+${agentConfig.extraction_examples ? '✅ Extraction Examples ensured consistent output format\n' : ''}
+${agentConfig.analysis_feedback ? '✅ Analysis Feedback prevented AI from repeating past mistakes\n' : ''}
 
 ---
 
@@ -408,9 +444,32 @@ ${agentConfig.analysis_feedback ? '✅ Analysis Feedback prevented AI from repea
 **Overall Match**: ${data.finalResult?.matched ? '✅ YES - Content matched user criteria' : '❌ NO - No matching content found'}
 
 **Statistics**:
-- **Total Matches**: ${data.finalResult?.totalMatches || 0} chunks
+- **Total Sources Matched**: ${data.finalResult?.totalMatches || 0} (email + scraped pages)
 - **Overall Confidence**: ${data.finalResult?.overallConfidence ? (data.finalResult.overallConfidence * 100).toFixed(1) + '%' : 'N/A'}
 - **Fields Extracted**: ${Object.keys(data.finalResult?.aggregatedData || {}).length}
+
+**Source Attribution** (NEW!):
+${(data.finalResult as any)?.dataBySource?.map((s: any, i: number) => `
+${i + 1}. **${s.source}**
+   - Fields: ${Object.keys(s.data).length}
+   - Confidence: ${(s.confidence * 100).toFixed(1)}%
+`).join('') || '(No source attribution data)'}
+
+---
+
+## 📈 Performance Improvements (vs Old Chunked Approach)
+
+**Old Approach (Chunking Everything)**:
+- Email chunked into: ~${Math.ceil((data.emailBodyLength || 0) / 3000)} chunks
+- Scraped pages chunked into: ~${Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000)} chunks
+- **Total API calls**: ~${1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000)} (intent + prioritize + email chunks + scraped chunks)
+
+**New Approach (Full Context)**:
+- Email: ${(data as any).emailAnalysis?.usedChunking ? 'Chunked (large)' : '✅ 1 API call (full context)'}
+- Scraped pages: ✅ ${(data.scrapedContent || []).length} API calls (1 per page, parallel)
+- **Total API calls**: ~${2 + ((data as any).emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length} (intent + prioritize + email + pages)
+
+**Savings**: ~${Math.max(0, (1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000)) - (2 + ((data as any).emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length))} fewer API calls = **${Math.round(Math.max(0, (1 - ((2 + ((data as any).emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length) / (1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000))))) * 100)}% cost reduction** 💰
 
 ${data.finalResult?.aggregatedData && Object.keys(data.finalResult.aggregatedData).length > 0 ? `
 ## 📊 Extracted Data
@@ -447,13 +506,14 @@ ${!agentConfig.link_selection_guidance && data.allLinksExtracted && data.allLink
 - \`01-email-html.html\` - Email HTML
 - \`01-email-plain-text.txt\` - Email plain text
 - \`02-links-extracted.json\` - All links found
-- \`02.5-intent-extraction.json\` - Email intent analysis (NEW!)
+- \`2.5-intent-extraction.json\` - Email intent analysis
 - \`03-ai-link-prioritization.json\` - AI's link selection reasoning
-- \`04-scraping-complete.json\` / \`04-content-retrieval-complete.json\` - Retrieved content
-- \`05-chunking-complete.json\` - Content chunks
-- \`06-chunk-analysis-complete.json\` - AI extraction results
-- \`07-aggregation-complete.json\` - Final aggregated data
+- \`04-content-retrieval-complete.json\` - Retrieved content (scraped/searched)
+- \`05-email-analysis-complete.json\` - **NEW!** Full email body analysis (1 API call)
+- \`06-scraped-pages-analysis-complete.json\` - **NEW!** Individual page analyses (parallel)
+- \`07-aggregation-complete.json\` - Final aggregated data with source attribution
 - \`99-complete-run-data.json\` - Everything in one file
+- \`SUMMARY.md\` - This human-readable summary
 
 ---
 

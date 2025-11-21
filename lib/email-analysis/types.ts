@@ -77,6 +77,21 @@ export interface SourcedData {
   confidence: number
 }
 
+/**
+ * Result from analyzing full content (email or scraped page)
+ * without chunking
+ */
+export interface FullContentAnalysisResult {
+  source: string  // 'Email' or URL
+  sourceType: 'email' | 'scraped'
+  matched: boolean
+  extractedData: Record<string, any>
+  reasoning: string
+  confidence: number
+  contentLength: number
+  usedChunking: boolean  // Whether content was too large and needed chunking
+}
+
 export interface AnalysisJobResult {
   success: boolean
   emailId: string

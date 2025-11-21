@@ -2,6 +2,13 @@
  * Generic Content Chunking
  * Splits email and scraped content into manageable chunks for AI analysis
  * Works with ANY content type - fully generic
+ * 
+ * NOTE: As of the full-context-analyzer refactor, chunking is now CONDITIONAL:
+ * - Most emails and pages are analyzed in full context (1 API call)
+ * - Chunking only happens as a fallback for exceptionally large content
+ * - See full-context-analyzer.ts for the new primary analysis flow
+ * 
+ * This module provides the chunking utilities used as fallback.
  */
 
 import * as cheerio from 'cheerio'
