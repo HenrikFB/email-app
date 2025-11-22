@@ -76,6 +76,9 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
+  const [showDetails, setShowDetails] = useState(false) // NEW: For collapsing entire result
+  const [showMatchedSources, setShowMatchedSources] = useState(true) // NEW: For matched sources
+  const [showRejectedSources, setShowRejectedSources] = useState(false) // NEW: For rejected sources
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -212,6 +215,10 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
     )
   }
 
+  // NEW: Separate matched and rejected sources
+  const matchedSources = result.data_by_source?.filter((s: any) => s.matched !== false) || []
+  const rejectedSources = result.data_by_source?.filter((s: any) => s.matched === false) || []
+
   return (
     <Card className={cardClassName}>
       <CardHeader>
@@ -232,9 +239,21 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
             {result.has_attachments && (
               <Badge variant="secondary">📎 Attachments</Badge>
             )}
+            {/* NEW: Add collapse/expand button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDetails(!showDetails)}
+              className="ml-2"
+            >
+              {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </CardHeader>
+      
+      {/* NEW: Make entire content collapsible */}
+      {showDetails && (
       <CardContent className="space-y-4">
         {/* Email Summary - Top Section */}
         {result.agent_configurations && (
@@ -327,135 +346,239 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
           </div>
         )}
 
-        {/* Extracted Data - Collapsible */}
-        {/* Extracted Data by Source Section - Shows ALL sources (matched + non-matched) */}
+        {/* Extracted Data - Separate Matched and Rejected */}
         {result.data_by_source && result.data_by_source.length > 0 && (
-          <Collapsible open={showExtractedData} onOpenChange={setShowExtractedData}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" className="w-full justify-between">
-                <span className="font-medium">
-                  📊 Extracted Data by Source ({result.data_by_source.filter((s: any) => s.matched).length} matched / {result.data_by_source.length} total)
-                </span>
-                {showExtractedData ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 space-y-3">
-              {result.data_by_source.map((sourceData, sourceIdx) => {
-                const sourceKey = `${result.id}-${sourceIdx}`
-                const isSelected = selectedSourceIds.includes(sourceKey)
+          <div className="space-y-4">
+            {/* Matched Sources Section */}
+            {matchedSources.length > 0 && (
+              <Collapsible open={showMatchedSources} onOpenChange={setShowMatchedSources}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-green-50 hover:bg-green-100 border-green-300">
+                    <span className="font-medium text-green-900">
+                      ✅ Matched Sources ({matchedSources.length})
+                    </span>
+                    {showMatchedSources ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 space-y-3">
+                  {matchedSources.map((sourceData, sourceIdx) => {
+                    const sourceKey = `${result.id}-matched-${sourceIdx}`
+                    const isSelected = selectedSourceIds.includes(sourceKey)
+                    const sourceMatched = true
 
-                // Determine if this source matched
-                const sourceMatched = (sourceData as any).matched !== false // Default to true if not specified (backward compat)
-                const bgColor = sourceMatched 
-                  ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-300" 
-                  : "bg-gradient-to-br from-red-50 to-orange-50 border-red-300"
-                const borderColor = sourceMatched ? "border-green-200" : "border-red-200"
-
-                return (
-                  <div key={sourceKey} className={`border-2 rounded-lg p-4 ${bgColor}`}>
-                  {/* Source Header */}
-                  <div className={`flex items-start justify-between mb-3 pb-3 border-b-2 ${borderColor}`}>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="text-xl">
-                          {sourceMatched ? '✅' : '❌'}
-                        </span>
-                        <span className="text-xl">
-                          {sourceData.source === 'Email' ? '📧' : '🌐'}
-                        </span>
-                        <p className="text-base font-bold text-gray-900">
-                          {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
-                        </p>
-                        <Badge variant={sourceMatched ? "default" : "destructive"} className="ml-2">
-                          {sourceMatched ? 'Matched' : 'Rejected'}
-                        </Badge>
-                    </div>
-                    {sourceData.source !== 'Email' && (
-                      <div className="ml-8 mt-2 space-y-1">
-                        <a
-                          href={sourceData.source}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-700 hover:text-blue-900 hover:underline flex items-center space-x-1 font-medium"
-                        >
-                          <span className="truncate max-w-lg font-mono text-xs">{sourceData.source}</span>
-                          <ExternalLink className="h-4 w-4 flex-shrink-0" />
-                        </a>
-                        <p className="text-xs text-gray-500 italic">
-                          ✓ Actual URL (resolved from SafeLinks redirect)
-                        </p>
-                      </div>
-                    )}
-                    </div>
-                    <Badge 
-                      variant="outline" 
-                      className={`${sourceMatched ? getConfidenceColor(sourceData.confidence) : 'bg-red-100 text-red-800'} font-bold text-base px-3 py-1`}
-                    >
-                      {(sourceData.confidence * 100).toFixed(0)}% confidence
-                    </Badge>
-                    {onSourceSearch && (
-                      <div className="ml-4 flex items-center space-x-1">
-                        <Checkbox
-                          id={`${sourceKey}-select`}
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSourceSelection(sourceKey)}
-                        />
-                        <label
-                          htmlFor={`${sourceKey}-select`}
-                          className="text-xs text-muted-foreground cursor-pointer"
-                        >
-                          Include
-                        </label>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Extracted Fields */}
-                  <div className="space-y-3">
-                    {Object.entries(sourceData.data).map(([key, value]) => (
-                      <div key={key} className="bg-white rounded-md shadow-sm p-3">
-                        <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
-                          {key.replace(/_/g, ' ')}:
-                        </p>
-                        <div className="text-sm text-gray-900">
-                          {Array.isArray(value) ? (
-                            <ul className="list-disc list-inside space-y-1 pl-2">
-                              {value.map((item, idx) => (
-                                <li key={idx} className="text-gray-800">{String(item)}</li>
-                              ))}
-                            </ul>
-                          ) : typeof value === 'object' && value !== null ? (
-                            <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
-                              {JSON.stringify(value, null, 2)}
-                            </pre>
-                          ) : (
-                            <p className="text-gray-800">{String(value)}</p>
+                    return (
+                      <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
+                        {/* Source Header */}
+                        <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-green-200">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="text-xl">✅</span>
+                              <span className="text-xl">
+                                {sourceData.source === 'Email' ? '📧' : '🌐'}
+                              </span>
+                              <p className="text-base font-bold text-gray-900">
+                                {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
+                              </p>
+                              <Badge variant="default" className="ml-2 bg-green-600">
+                                Matched
+                              </Badge>
+                            </div>
+                            {sourceData.source !== 'Email' && (
+                              <div className="ml-8 mt-2 space-y-1">
+                                <a
+                                  href={sourceData.source}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-700 hover:text-blue-900 hover:underline flex items-center space-x-1 font-medium"
+                                >
+                                  <span className="truncate max-w-lg font-mono text-xs">{sourceData.source}</span>
+                                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                                </a>
+                                <p className="text-xs text-gray-500 italic">
+                                  ✓ Actual URL (resolved from SafeLinks redirect)
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <Badge 
+                            variant="outline" 
+                            className={`${getConfidenceColor(sourceData.confidence)} font-bold text-base px-3 py-1`}
+                          >
+                            {(sourceData.confidence * 100).toFixed(0)}% sure this matches
+                          </Badge>
+                          {onSourceSearch && (
+                            <div className="ml-4 flex items-center space-x-1">
+                              <Checkbox
+                                id={`${sourceKey}-select`}
+                                checked={isSelected}
+                                onCheckedChange={() => toggleSourceSelection(sourceKey)}
+                              />
+                              <label
+                                htmlFor={`${sourceKey}-select`}
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                Include
+                              </label>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
 
-                  {/* Reasoning */}
-                  {sourceData.reasoning && (
-                    <div className="mt-3 pt-3 border-t border-blue-200">
-                      <p className="text-xs text-gray-600 italic">
-                        💭 {sourceData.reasoning}
-                      </p>
-                    </div>
-                  )}
-                  </div>
-                )
-              })}
-              {onSourceSearch && selectedSourceIds.length > 0 && (
-                <div className="flex justify-end pt-2">
-                  <Button size="sm" onClick={triggerSourceSearch}>
-                    Search Selected Sources ({selectedSourceIds.length})
+                        {/* Extracted Fields */}
+                        <div className="space-y-3">
+                          {Object.entries(sourceData.data).map(([key, value]) => (
+                            <div key={key} className="bg-white rounded-md shadow-sm p-3">
+                              <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
+                                {key.replace(/_/g, ' ')}:
+                              </p>
+                              <div className="text-sm text-gray-900">
+                                {Array.isArray(value) ? (
+                                  <ul className="list-disc list-inside space-y-1 pl-2">
+                                    {value.map((item, idx) => (
+                                      <li key={idx} className="text-gray-800">{String(item)}</li>
+                                    ))}
+                                  </ul>
+                                ) : typeof value === 'object' && value !== null ? (
+                                  <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
+                                    {JSON.stringify(value, null, 2)}
+                                  </pre>
+                                ) : (
+                                  <p className="text-gray-800">{String(value)}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Reasoning */}
+                        {sourceData.reasoning && (
+                          <div className="mt-3 pt-3 border-t border-green-200">
+                            <p className="text-xs text-gray-600 italic">
+                              💭 {sourceData.reasoning}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Rejected Sources Section */}
+            {rejectedSources.length > 0 && (
+              <Collapsible open={showRejectedSources} onOpenChange={setShowRejectedSources}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-red-50 hover:bg-red-100 border-red-300">
+                    <span className="font-medium text-red-900">
+                      ❌ Rejected Sources ({rejectedSources.length})
+                    </span>
+                    {showRejectedSources ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                </div>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 space-y-3">
+                  {rejectedSources.map((sourceData, sourceIdx) => {
+                    const sourceKey = `${result.id}-rejected-${sourceIdx}`
+                    const isSelected = selectedSourceIds.includes(sourceKey)
+                    const sourceMatched = false
+
+                    return (
+                      <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-red-50 to-orange-50 border-red-300">
+                        {/* Source Header */}
+                        <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-red-200">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="text-xl">❌</span>
+                              <span className="text-xl">
+                                {sourceData.source === 'Email' ? '📧' : '🌐'}
+                              </span>
+                              <p className="text-base font-bold text-gray-900">
+                                {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
+                              </p>
+                              <Badge variant="destructive" className="ml-2">
+                                Rejected
+                              </Badge>
+                            </div>
+                            {sourceData.source !== 'Email' && (
+                              <div className="ml-8 mt-2 space-y-1">
+                                <a
+                                  href={sourceData.source}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-700 hover:text-blue-900 hover:underline flex items-center space-x-1 font-medium"
+                                >
+                                  <span className="truncate max-w-lg font-mono text-xs">{sourceData.source}</span>
+                                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                                </a>
+                                <p className="text-xs text-gray-500 italic">
+                                  ✓ Actual URL (resolved from SafeLinks redirect)
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <Badge 
+                            variant="outline" 
+                            className="bg-red-100 text-red-800 font-bold text-base px-3 py-1"
+                          >
+                            {(sourceData.confidence * 100).toFixed(0)}% sure this doesn't match
+                          </Badge>
+                          {onSourceSearch && (
+                            <div className="ml-4 flex items-center space-x-1">
+                              <Checkbox
+                                id={`${sourceKey}-select`}
+                                checked={isSelected}
+                                onCheckedChange={() => toggleSourceSelection(sourceKey)}
+                              />
+                              <label
+                                htmlFor={`${sourceKey}-select`}
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                Include
+                              </label>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Extracted Fields */}
+                        <div className="space-y-3">
+                          {Object.entries(sourceData.data).map(([key, value]) => (
+                            <div key={key} className="bg-white rounded-md shadow-sm p-3">
+                              <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
+                                {key.replace(/_/g, ' ')}:
+                              </p>
+                              <div className="text-sm text-gray-900">
+                                {Array.isArray(value) ? (
+                                  <ul className="list-disc list-inside space-y-1 pl-2">
+                                    {value.map((item, idx) => (
+                                      <li key={idx} className="text-gray-800">{String(item)}</li>
+                                    ))}
+                                  </ul>
+                                ) : typeof value === 'object' && value !== null ? (
+                                  <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
+                                    {JSON.stringify(value, null, 2)}
+                                  </pre>
+                                ) : (
+                                  <p className="text-gray-800">{String(value)}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Reasoning */}
+                        {sourceData.reasoning && (
+                          <div className="mt-3 pt-3 border-t border-red-200">
+                            <p className="text-xs text-gray-600 italic">
+                              💭 {sourceData.reasoning}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
         )}
 
         {/* Fallback: Show old aggregated data if data_by_source is not available */}
@@ -571,6 +694,7 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
+      )}
       <CardFooter className="flex justify-between items-center">
         <div className="text-xs text-muted-foreground">
           <span>Analyzed: {result.analyzed_at ? new Date(result.analyzed_at).toLocaleString() : 'N/A'}</span>
