@@ -62,7 +62,7 @@ export function extractTextFromHtml(html: string): string {
     }
   })
   
-  // Table cells (important for job listings)
+  // Table cells (important for structured data)
   $('td, th').each((_, el) => {
     const text = $(el).text().trim()
     if (text.length > 10) {

@@ -35,6 +35,119 @@ import {
 import { getKBContextForRAG } from '@/lib/embeddings/service'
 import { getAssignedKBs } from '@/app/dashboard/knowledge-base/actions'
 import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage } from './types'
+import * as cheerio from 'cheerio'
+
+/**
+ * Analyzes email HTML structure to identify patterns
+ * Generic - works for any content type based on button_text_pattern and match_criteria
+ */
+async function analyzeHtmlStructure(
+  html: string,
+  buttonTextPattern: string | null | undefined,
+  matchCriteria: string
+): Promise<{
+  potentialSections: number
+  buttonMatches: number
+  structureHints: string[]
+}> {
+  const $ = cheerio.load(html)
+  const hints: string[] = []
+  
+  // Count button pattern matches
+  let buttonMatches = 0
+  if (buttonTextPattern) {
+    const pattern = new RegExp(buttonTextPattern, 'i')
+    $('a, button').each((_, el) => {
+      const text = $(el).text().trim()
+      if (pattern.test(text)) {
+        buttonMatches++
+      }
+    })
+  }
+  
+  // Identify repeated sections (e.g., listings, cards)
+  const potentialSections = Math.max(
+    $('table tr').length,
+    $('li').length,
+    $('[class*="card"]').length,
+    $('[class*="item"]').length,
+    $('[class*="listing"]').length,
+    $('[class*="entry"]').length
+  )
+  
+  // Structure hints
+  if (buttonMatches > 0) {
+    hints.push(`Found ${buttonMatches} button pattern match(es) - strong indicator of primary content`)
+  }
+  if (potentialSections > 5) {
+    hints.push(`Detected ${potentialSections} potential content sections - likely a list format`)
+  }
+  if ($('table').length > 0) {
+    hints.push('Contains table(s) - structured data likely present')
+  }
+  
+  return {
+    potentialSections,
+    buttonMatches,
+    structureHints: hints
+  }
+}
+
+/**
+ * Validates links based on agent configuration
+ * Generic validation using link_selection_guidance
+ */
+function validateLinks(
+  links: { url: string; text: string; isButton: boolean }[],
+  agentConfig: {
+    link_selection_guidance?: string
+    button_text_pattern?: string
+  }
+): { url: string; text: string; isButton: boolean }[] {
+  return links.filter(link => {
+    const url = link.url.toLowerCase()
+    const text = link.text.toLowerCase()
+    
+    // Always keep button pattern matches unless explicitly guided otherwise
+    if (link.isButton && agentConfig.button_text_pattern) {
+      return true
+    }
+    
+    // Filter out common non-content patterns (unless link_selection_guidance says otherwise)
+    const commonNonContentPatterns = [
+      /unsubscribe/i,
+      /login|logout|sign[\s-]?in|sign[\s-]?out/i,
+      /privacy|terms|cookie[\s-]?policy/i,
+      /settings|preferences|account/i,
+      /facebook\.com|twitter\.com|linkedin\.com\/company|instagram\.com/i, // Social media (but not linkedin jobs)
+      /mailto:/i,
+    ]
+    
+    // Check if link_selection_guidance explicitly says to include these
+    const guidanceOverride = agentConfig.link_selection_guidance?.toLowerCase()
+    const shouldIncludeAnyway = guidanceOverride && (
+      guidanceOverride.includes('include all links') ||
+      guidanceOverride.includes('include navigation') ||
+      guidanceOverride.includes('include settings')
+    )
+    
+    if (!shouldIncludeAnyway) {
+      for (const pattern of commonNonContentPatterns) {
+        if (pattern.test(url) || pattern.test(text)) {
+          return false
+        }
+      }
+    }
+    
+    // Filter out very generic single-word navigation
+    const veryGenericNavigation = /^(home|about|contact|help|faq|support)$/i
+    if (!shouldIncludeAnyway && veryGenericNavigation.test(text.trim())) {
+      return false
+    }
+    
+    return true
+  })
+}
 
 /**
  * Normalize and deduplicate URLs
@@ -168,10 +281,35 @@ export async function analyzeEmail(
     logDebugText(debugRunId, '01-email-plain-text.txt', emailPlainText)
     logDebugText(debugRunId, '01-email-html.html', emailHtmlBody)
     
+    // ========== STEP 1.5: Analyze HTML Structure ==========
+    console.log('\n🔍 STEP 1.5: Analyzing HTML structure...')
+    
+    const htmlStructure = await analyzeHtmlStructure(
+      emailHtmlBody,
+      input.agentConfig.button_text_pattern,
+      input.agentConfig.match_criteria
+    )
+    
+    console.log(`✅ HTML structure analysis:`)
+    console.log(`   Potential sections: ${htmlStructure.potentialSections}`)
+    console.log(`   Button pattern matches: ${htmlStructure.buttonMatches}`)
+    if (htmlStructure.structureHints.length > 0) {
+      console.log(`   Hints:`)
+      htmlStructure.structureHints.forEach(hint => console.log(`     - ${hint}`))
+    }
+    
+    logDebugStep(debugRunId, 1.5, 'html-structure-analysis', {
+      potentialSections: htmlStructure.potentialSections,
+      buttonMatches: htmlStructure.buttonMatches,
+      structureHints: htmlStructure.structureHints
+    })
+    
     // ========== STEP 2: Extract ALL Links from FULL Email HTML ==========
     console.log('\n🔗 STEP 2: Extracting links from FULL email HTML (before truncation)...')
     
-    const allLinks = extractLinksFromHtml(emailHtmlBody) // No maxLinks limit!
+    const allLinks = extractLinksFromHtml(emailHtmlBody, {
+      buttonTextPattern: input.agentConfig.button_text_pattern || undefined
+    }) // No maxLinks limit, but pass button pattern for detection
     const allLinksFound = allLinks.map(link => link.url)
     
     debugData.allLinksExtracted = allLinks
@@ -232,14 +370,41 @@ export async function analyzeEmail(
       console.log('\n⏭️  STEP 2.5: Skipping intent extraction (follow_links=false or no links found)')
     }
     
+    // ========== STEP 2.8: Link Validation ==========
+    let validatedLinks = allLinks
+    
+    if (input.agentConfig.follow_links && allLinks.length > 0) {
+      console.log('\n✅ STEP 2.8: Validating links (filtering obvious non-content)...')
+      
+      validatedLinks = validateLinks(allLinks, {
+        link_selection_guidance: input.agentConfig.link_selection_guidance,
+        button_text_pattern: input.agentConfig.button_text_pattern
+      })
+      
+      const filteredCount = allLinks.length - validatedLinks.length
+      if (filteredCount > 0) {
+        console.log(`   Filtered out ${filteredCount} non-content link(s)`)
+        console.log(`   Remaining: ${validatedLinks.length} valid links`)
+      } else {
+        console.log(`   All ${validatedLinks.length} links passed validation`)
+      }
+      
+      logDebugStep(debugRunId, 2.8, 'link-validation', {
+        totalLinks: allLinks.length,
+        validLinks: validatedLinks.length,
+        filteredCount,
+        validatedLinks: validatedLinks.map(l => ({ url: l.url, text: l.text, isButton: l.isButton }))
+      })
+    }
+    
     // ========== STEP 3: AI Link Prioritization ==========
     let selectedLinks: string[] = []
     
-    if (input.agentConfig.follow_links && allLinks.length > 0) {
+    if (input.agentConfig.follow_links && validatedLinks.length > 0) {
       console.log('\n🤖 STEP 3: AI prioritizing links with email context...')
       
       const prioritization = await prioritizeLinksWithAI(
-        allLinks,
+        validatedLinks,
         input.agentConfig.match_criteria,
         input.agentConfig.extraction_fields,
         input.agentConfig.button_text_pattern,
@@ -307,6 +472,7 @@ export async function analyzeEmail(
     
     // ========== STEP 4: Retrieve Content from Selected Links ==========
     let scrapedPages: ScrapedPage[] = []
+    let urlMappings: Array<{ original: string; actual: string }> = []
     debugData.scrapingAttempts = []
     debugData.scrapedContent = []
     
@@ -338,14 +504,33 @@ export async function analyzeEmail(
         })
       )
       
-      // Convert to ScrapedPage format
+      // Convert to ScrapedPage format and track URL mappings
       scrapedPages = retrievalResults
         .filter(result => result.success && result.content)
-        .map(result => ({
-          url: result.url,
-          markdown: result.content,
-          title: result.metadata.title || result.url
-        }))
+        .map((result, index) => {
+          // Track mapping: original SafeLinks URL → actual redirected URL
+          const originalUrl = selectedLinks[retrievalResults.indexOf(result)]
+          if (originalUrl !== result.url) {
+            urlMappings.push({
+              original: originalUrl,
+              actual: result.url
+            })
+          }
+          
+          return {
+            url: result.url,
+            markdown: result.content,
+            title: result.metadata.title || result.url
+          }
+        })
+      
+      // Log URL mappings for debugging
+      if (urlMappings.length > 0) {
+        console.log(`\n🔗 URL Redirects Resolved:`)
+        urlMappings.forEach(mapping => {
+          console.log(`   ${mapping.original.substring(0, 50)}... → ${mapping.actual}`)
+        })
+      }
       
       debugData.scrapingAttempts = retrievalResults.map(result => ({
         url: result.url,
@@ -486,19 +671,24 @@ export async function analyzeEmail(
       console.log(`   Pages matched: ${scrapedAnalyses.filter(a => a.matched).length}`)
       console.log(`   Pages chunked: ${scrapedAnalyses.filter(a => a.usedChunking).length}`)
       
-      logDebugStep(debugRunId, 6, 'scraped-pages-analysis-complete', {
-        total_pages: scrapedAnalyses.length,
-        matched_pages: scrapedAnalyses.filter(a => a.matched).length,
-        pages_requiring_chunking: scrapedAnalyses.filter(a => a.usedChunking).length,
-        results: scrapedAnalyses.map(a => ({
-          source: a.source,
+    logDebugStep(debugRunId, 6, 'scraped-pages-analysis-complete', {
+      total_pages: scrapedAnalyses.length,
+      matched_pages: scrapedAnalyses.filter(a => a.matched).length,
+      pages_requiring_chunking: scrapedAnalyses.filter(a => a.usedChunking).length,
+      results: scrapedAnalyses.map(a => {
+        const pageInfo = scrapedPages.find(p => p.url === a.source)
+        return {
+          original_url: a.source,  // SafeLinks URL
+          actual_url: pageInfo?.metadata?.actualUrl || a.source,  // Real URL after redirect
+          title: pageInfo?.title || 'Unknown',
           matched: a.matched,
           confidence: a.confidence,
           used_chunking: a.usedChunking,
           extracted_fields: Object.keys(a.extractedData).length,
           reasoning: a.reasoning
-        }))
+        }
       })
+    })
     } else {
       console.log(`   No scraped pages to analyze`)
     }
@@ -510,12 +700,13 @@ export async function analyzeEmail(
     const allAnalyses = [emailAnalysis, ...scrapedAnalyses]
     const matchedAnalyses = allAnalyses.filter(a => a.matched)
     
-    // Build data by source for source attribution
-    const dataBySource = matchedAnalyses.map(a => ({
+    // Build data by source for source attribution - INCLUDE ALL (matched + non-matched)
+    const dataBySource = allAnalyses.map(a => ({
       source: a.source,
       data: a.extractedData,
       reasoning: a.reasoning,
-      confidence: a.confidence
+      confidence: a.confidence,
+      matched: a.matched  // NEW: Include match status so UI can show all sources
     }))
     
     // Merge all extracted data intelligently
@@ -632,6 +823,7 @@ export async function analyzeEmail(
       dataBySource: aggregated.dataBySource,  // Source-attributed data
       scrapedUrls: scrapedPages.map(p => p.url),
       scrapedContent: Object.keys(scrapedContent).length > 0 ? scrapedContent : undefined,
+      originalUrls: urlMappings.length > 0 ? urlMappings : undefined,  // SafeLinks → Actual URL mappings
       allLinksFound,
       emailHtmlBody: emailHtmlBody,
       reasoning: aggregated.totalMatches > 0

@@ -385,6 +385,12 @@ Return a JSON object with these fields:
 3. **Match the FORMAT**: Follow extraction_examples format exactly
 4. **Apply FEEDBACK**: Avoid mistakes mentioned in analysis_feedback
 5. **Be SPECIFIC**: Extract concrete values (e.g., "Java, Python" not "programming languages")
+6. **Be FLEXIBLE with ranges and thresholds**:
+   - If user says "less than 5 years", accept "3-5 years", "0-4 years", or any range that overlaps
+   - If user says "experienced", accept "3+ years", "Senior", or similar
+   - If user says "junior" or "less than X years", accept any range that INCLUDES that level
+   - Example: "less than 5 years" should match "2-4 years", "3-5 years", or even "entry-level"
+   - Only reject if the range is CLEARLY above the threshold (e.g., "5-10 years" for "less than 5")
 
 ## Step-by-Step Reasoning
 

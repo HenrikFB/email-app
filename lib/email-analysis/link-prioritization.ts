@@ -99,8 +99,8 @@ Think step-by-step:
 5. ${analysisFeedback ? 'Am I avoiding the problems mentioned in the feedback?' : ''}
 
 **Important**: 
-- Link text might be generic ("Software Developer", "IT jobs", "View Details")
-- But the SPECIFIC details the user wants (.NET, JavaScript, RPA, specific amounts, etc.) are often INSIDE those links
+- Link text might be generic ("View Details", "Read More", "Click Here")
+- But the SPECIFIC details the user wants (technologies, amounts, dates, etc.) are often INSIDE those links
 - Extract key terms that should appear in the TARGET PAGES, not necessarily in link text
 
 **Return JSON**:
@@ -111,7 +111,7 @@ Think step-by-step:
 }
 
 **Examples of good extraction**:
-- If user wants "IT and software jobs" but email mentions ".NET developer, JavaScript" → keyTerms: [".NET", "JavaScript", "software developer"]
+- If user wants "software developer positions" but email mentions ".NET developer, JavaScript" → keyTerms: [".NET", "JavaScript", "software developer"]
 - If user wants "investment opportunities" but email says "fintech startup, €750K" → keyTerms: ["fintech", "€750K", "startup", "equity"]
 - If user wants "order details" but email is about "refund #12345" → keyTerms: ["refund", "order #12345", "return"]
 
@@ -156,7 +156,7 @@ Return only valid JSON.`
  * @param links - All links extracted from email
  * @param matchCriteria - User's match criteria (what they're interested in)
  * @param extractionFields - What the user wants to extract
- * @param buttonTextPattern - Optional pattern to boost link ranking (e.g., "Se jobbet|Apply")
+ * @param buttonTextPattern - Optional pattern to boost link ranking (e.g., "View Details|Apply|Read More")
  * @param emailIntent - Optional intent extracted from email content
  * @param linkGuidance - Optional guidance for link selection
  * @param extractionExamples - Optional examples of expected extraction format
@@ -260,6 +260,11 @@ ${analysisFeedback}
 Do NOT repeat these errors. This is critical feedback from the user.
 ` : ''}
 
+**IMPORTANT NOTE ABOUT URLs**:
+Many URLs may be wrapped in email protection services (like Outlook SafeLinks: safelinks.protection.outlook.com).
+These will redirect to the actual destination. Focus on the LINK TEXT and CONTEXT, not the SafeLinks URL.
+The actual destination URL will be revealed after scraping.
+
 **AVAILABLE LINKS**:
 
 ${buttonMatchLinks.length > 0 ? `🎯 PRIORITY LINKS (button pattern matches):
@@ -275,11 +280,11 @@ SELECTION RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. 🎯 STRONGLY PREFER button pattern matches - these are the primary content
-2. ✅ Links with job/product/content-specific words are likely relevant
+2. ✅ Links with content-specific words are likely relevant
 3. ❌ SKIP: navigation, login, settings, unsubscribe, social media, about/terms/privacy, company homepages
 4. 💭 THINK: Would this page contain the KEY TERMS and specific data the user needs?
 
-**CRITICAL**: Link text is often generic ("View Details", "Se jobbet", "Software Developer").
+**CRITICAL**: Link text is often generic ("View Details", "Read More", "Click Here").
 The SPECIFICS (${emailIntent?.keyTerms?.slice(0, 3).join(', ') || 'technologies, amounts, details'}) are INSIDE the pages.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -317,15 +322,19 @@ NO explanations, just numbers or "NONE":`
     }
     
     // Parse AI response
+    // IMPORTANT: AI saw links in this order: [buttonMatchLinks, regularLinks]
+    // So we need to map indices to the reordered array, not the original
+    const reorderedLinks = [...buttonMatchLinks, ...regularLinks]
+    
     const indices = content
       .split(',')
       .map(s => {
         const num = parseInt(s.trim())
         return num - 1 // Convert to 0-based index
       })
-      .filter(i => !isNaN(i) && i >= 0 && i < links.length)
+      .filter(i => !isNaN(i) && i >= 0 && i < reorderedLinks.length)
     
-    const selectedUrls = indices.map(i => links[i].url)
+    const selectedUrls = indices.map(i => reorderedLinks[i].url)
     
     console.log(`✅ AI selected ${selectedUrls.length}/${links.length} relevant links`)
     selectedUrls.forEach((url, i) => {

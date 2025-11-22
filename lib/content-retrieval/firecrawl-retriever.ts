@@ -35,15 +35,19 @@ export class FirecrawlRetriever implements ContentRetriever {
         }
       }
 
+      // Firecrawl might return the actual URL after following redirects
+      const actualUrl = result.metadata?.url || result.metadata?.sourceURL || url
+
       return {
         success: true,
-        url,
+        url: actualUrl,  // The actual URL after redirects
         content: result.markdown,
         format: 'markdown',
         source: 'firecrawl',
         metadata: {
           title: result.metadata?.title,
-          originalUrl: url,
+          originalUrl: url,  // Keep the SafeLinks URL as originalUrl
+          actualUrl: actualUrl,  // The real URL after redirect
         },
       }
     } catch (error) {

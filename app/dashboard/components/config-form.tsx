@@ -176,37 +176,37 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
           {/* SECTION 1: Basic Information */}
           <div className="space-y-4 pb-4 border-b">
             <h3 className="text-lg font-semibold">Basic Information</h3>
-            
-            <div className="space-y-2">
-              <Label htmlFor="name">Configuration Name *</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="E.g., Jobs - Software Developer"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
+          
+          <div className="space-y-2">
+            <Label htmlFor="name">Configuration Name *</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="E.g., Jobs - Software Developer"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                 A unique name to identify this configuration
-              </p>
-            </div>
+            </p>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="emailAddress">Email Address to Monitor</Label>
-              <Input
-                id="emailAddress"
-                type="email"
-                placeholder="incoming@example.com"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-                required
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
+          <div className="space-y-2">
+            <Label htmlFor="emailAddress">Email Address to Monitor</Label>
+            <Input
+              id="emailAddress"
+              type="email"
+              placeholder="incoming@example.com"
+              value={emailAddress}
+              onChange={(e) => setEmailAddress(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                 The email address you want to analyze
-              </p>
+            </p>
             </div>
           </div>
 
@@ -222,32 +222,32 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
               </CollapsibleTrigger>
               
               <CollapsibleContent className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label htmlFor="matchCriteria">What are you interested in?</Label>
-                  <Textarea
-                    id="matchCriteria"
-                    placeholder="E.g., Software developer jobs with less than 5 years experience, .NET, TypeScript, JavaScript, or RPA/automation. Avoid PLC/SCADA, hardware, electronic engineering."
-                    value={matchCriteria}
-                    onChange={(e) => setMatchCriteria(e.target.value)}
-                    rows={5}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
+          <div className="space-y-2">
+            <Label htmlFor="matchCriteria">What are you interested in?</Label>
+            <Textarea
+              id="matchCriteria"
+              placeholder="E.g., Software developer jobs with less than 5 years experience, .NET, TypeScript, JavaScript, or RPA/automation. Avoid PLC/SCADA, hardware, electronic engineering."
+              value={matchCriteria}
+              onChange={(e) => setMatchCriteria(e.target.value)}
+              rows={5}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                     Describe what emails you want to match/filter
-                  </p>
-                </div>
+            </p>
+          </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="extractionFields">What to extract if matched?</Label>
-                  <Textarea
-                    id="extractionFields"
-                    placeholder="E.g., deadline, technologies, competencies, experience level, company domains, location, work type"
-                    value={extractionFields}
-                    onChange={(e) => setExtractionFields(e.target.value)}
-                    rows={4}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
+          <div className="space-y-2">
+            <Label htmlFor="extractionFields">What to extract if matched?</Label>
+            <Textarea
+              id="extractionFields"
+              placeholder="E.g., deadline, technologies, competencies, experience level, company domains, location, work type"
+              value={extractionFields}
+              onChange={(e) => setExtractionFields(e.target.value)}
+              rows={4}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                     What information to extract if the email matches
                   </p>
                 </div>
@@ -391,21 +391,21 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                       />
                       <p className="text-xs text-muted-foreground">
                         Maximum number of links to analyze per email (default: 10). Controls cost and time.
-                      </p>
-                    </div>
+            </p>
+          </div>
 
-                    <div className="space-y-2">
+          <div className="space-y-2">
                       <Label htmlFor="buttonTextPattern">
                         Button Text Pattern <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
                       </Label>
-                      <Input
-                        id="buttonTextPattern"
-                        placeholder="E.g., Se jobbet|Apply|View Job|Read More"
-                        value={buttonTextPattern}
-                        onChange={(e) => setButtonTextPattern(e.target.value)}
-                        disabled={loading}
-                      />
-                      <p className="text-xs text-muted-foreground">
+            <Input
+              id="buttonTextPattern"
+              placeholder="E.g., Se jobbet|Apply|View Job|Read More"
+              value={buttonTextPattern}
+              onChange={(e) => setButtonTextPattern(e.target.value)}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                         Regex pattern to boost link ranking. Use pipe | for multiple patterns.
                       </p>
                     </div>
@@ -464,58 +464,58 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                       Include analysis of email attachments (PDFs, documents, etc.)
                     </p>
                   </div>
-                </div>
+          </div>
 
-                {knowledgeBases.length > 0 && (
+          {knowledgeBases.length > 0 && (
                   <div className="space-y-2 pt-4 border-t">
-                    <Label>
-                      <Database className="inline h-4 w-4 mr-1" />
+              <Label>
+                <Database className="inline h-4 w-4 mr-1" />
                       Assign Knowledge Bases <Badge variant="secondary" className="ml-1 text-xs">Optional - for RAG</Badge>
-                    </Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
-                      {loadingKBs ? (
-                        <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
-                      ) : knowledgeBases.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          No knowledge bases yet. Create one from the Knowledge Base page.
+              </Label>
+              <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
+                {loadingKBs ? (
+                  <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
+                ) : knowledgeBases.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No knowledge bases yet. Create one from the Knowledge Base page.
+                  </p>
+                ) : (
+                  knowledgeBases.map(kb => (
+                    <div key={kb.id} className="flex items-start space-x-2">
+                      <Checkbox
+                        id={`kb-${kb.id}`}
+                        checked={selectedKBIds.includes(kb.id)}
+                        onCheckedChange={() => toggleKBSelection(kb.id)}
+                        disabled={loading}
+                      />
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`kb-${kb.id}`}
+                          className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                        >
+                          {kb.name}
+                          <Badge variant="outline" className="text-xs">
+                            {kb.type}
+                          </Badge>
+                        </label>
+                        {kb.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {kb.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {kb.document_count} docs • {kb.total_chunks} chunks
                         </p>
-                      ) : (
-                        knowledgeBases.map(kb => (
-                          <div key={kb.id} className="flex items-start space-x-2">
-                            <Checkbox
-                              id={`kb-${kb.id}`}
-                              checked={selectedKBIds.includes(kb.id)}
-                              onCheckedChange={() => toggleKBSelection(kb.id)}
-                              disabled={loading}
-                            />
-                            <div className="flex-1">
-                              <label
-                                htmlFor={`kb-${kb.id}`}
-                                className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                              >
-                                {kb.name}
-                                <Badge variant="outline" className="text-xs">
-                                  {kb.type}
-                                </Badge>
-                              </label>
-                              {kb.description && (
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {kb.description}
-                                </p>
-                              )}
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {kb.document_count} docs • {kb.total_chunks} chunks
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Selected KBs provide context to improve extraction accuracy (RAG)
-                    </p>
-                  </div>
+                  ))
                 )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                      Selected KBs provide context to improve extraction accuracy (RAG)
+              </p>
+            </div>
+          )}
 
               </CollapsibleContent>
             </div>

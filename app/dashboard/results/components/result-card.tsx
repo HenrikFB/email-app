@@ -236,6 +236,60 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Email Summary - Top Section */}
+        {result.agent_configurations && (
+          <div className="rounded-md border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 p-4">
+            <h3 className="text-lg font-bold text-indigo-900 mb-2">📋 Email Analysis Summary</h3>
+            
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-semibold text-indigo-800">Agent Config:</span>
+                <span className="ml-2 text-indigo-700">{result.agent_configurations.name}</span>
+              </div>
+              
+              {result.agent_configurations.match_criteria && (
+                <div>
+                  <span className="font-semibold text-indigo-800">Match Criteria:</span>
+                  <p className="mt-1 text-indigo-700 whitespace-pre-wrap">{result.agent_configurations.match_criteria}</p>
+                </div>
+              )}
+              
+              {result.agent_configurations.extraction_fields && (
+                <div>
+                  <span className="font-semibold text-indigo-800">Extraction Fields:</span>
+                  <span className="ml-2 text-indigo-700">{result.agent_configurations.extraction_fields}</span>
+                </div>
+              )}
+              
+              {result.reasoning && (
+                <div>
+                  <span className="font-semibold text-indigo-800">Overall Reasoning:</span>
+                  <p className="mt-1 text-indigo-700 italic">{result.reasoning}</p>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-indigo-200">
+                <div>
+                  <span className="font-semibold text-indigo-800">Scraped URLs:</span>
+                  <span className="ml-2 text-indigo-700">{result.scraped_urls?.length || 0}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-indigo-800">Data Sources:</span>
+                  <span className="ml-2 text-indigo-700">{result.data_by_source?.length || 0}</span>
+                </div>
+                {result.confidence !== null && (
+                  <div>
+                    <span className="font-semibold text-indigo-800">Overall Confidence:</span>
+                    <span className={`ml-2 font-bold ${getConfidenceColor(result.confidence)}`}>
+                      {(result.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Reasoning - Prominent display */}
         {result.reasoning && (
           <div className="rounded-md border-l-4 border-blue-500 bg-blue-50 p-4">
@@ -274,12 +328,14 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
         )}
 
         {/* Extracted Data - Collapsible */}
-        {/* Extracted Data by Source Section (NEW!) */}
-        {result.matched && result.data_by_source && result.data_by_source.length > 0 && (
+        {/* Extracted Data by Source Section - Shows ALL sources (matched + non-matched) */}
+        {result.data_by_source && result.data_by_source.length > 0 && (
           <Collapsible open={showExtractedData} onOpenChange={setShowExtractedData}>
             <CollapsibleTrigger asChild>
               <Button variant="outline" className="w-full justify-between">
-                <span className="font-medium">📊 Extracted Data by Source ({result.data_by_source.length} sources)</span>
+                <span className="font-medium">
+                  📊 Extracted Data by Source ({result.data_by_source.filter((s: any) => s.matched).length} matched / {result.data_by_source.length} total)
+                </span>
                 {showExtractedData ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </Button>
             </CollapsibleTrigger>
@@ -288,33 +344,54 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                 const sourceKey = `${result.id}-${sourceIdx}`
                 const isSelected = selectedSourceIds.includes(sourceKey)
 
+                // Determine if this source matched
+                const sourceMatched = (sourceData as any).matched !== false // Default to true if not specified (backward compat)
+                const bgColor = sourceMatched 
+                  ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-300" 
+                  : "bg-gradient-to-br from-red-50 to-orange-50 border-red-300"
+                const borderColor = sourceMatched ? "border-green-200" : "border-red-200"
+
                 return (
-                  <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-purple-50">
+                  <div key={sourceKey} className={`border-2 rounded-lg p-4 ${bgColor}`}>
                   {/* Source Header */}
-                  <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-blue-200">
+                  <div className={`flex items-start justify-between mb-3 pb-3 border-b-2 ${borderColor}`}>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-xl">
+                          {sourceMatched ? '✅' : '❌'}
+                        </span>
                         <span className="text-xl">
                           {sourceData.source === 'Email' ? '📧' : '🌐'}
                         </span>
                         <p className="text-base font-bold text-gray-900">
                           {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
                         </p>
-                      </div>
-                      {sourceData.source !== 'Email' && (
+                        <Badge variant={sourceMatched ? "default" : "destructive"} className="ml-2">
+                          {sourceMatched ? 'Matched' : 'Rejected'}
+                        </Badge>
+                    </div>
+                    {sourceData.source !== 'Email' && (
+                      <div className="ml-8 mt-2 space-y-1">
                         <a
                           href={sourceData.source}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline flex items-center space-x-1 ml-8 mt-1"
+                          className="text-sm text-blue-700 hover:text-blue-900 hover:underline flex items-center space-x-1 font-medium"
                         >
-                          <span className="truncate max-w-md">{sourceData.source}</span>
-                          <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate max-w-lg font-mono text-xs">{sourceData.source}</span>
+                          <ExternalLink className="h-4 w-4 flex-shrink-0" />
                         </a>
-                      )}
+                        <p className="text-xs text-gray-500 italic">
+                          ✓ Actual URL (resolved from SafeLinks redirect)
+                        </p>
+                      </div>
+                    )}
                     </div>
-                    <Badge variant="outline" className={getConfidenceColor(sourceData.confidence)}>
-                      {(sourceData.confidence * 100).toFixed(0)}%
+                    <Badge 
+                      variant="outline" 
+                      className={`${sourceMatched ? getConfidenceColor(sourceData.confidence) : 'bg-red-100 text-red-800'} font-bold text-base px-3 py-1`}
+                    >
+                      {(sourceData.confidence * 100).toFixed(0)}% confidence
                     </Badge>
                     {onSourceSearch && (
                       <div className="ml-4 flex items-center space-x-1">
@@ -435,20 +512,27 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
             {result.scraped_urls && result.scraped_urls.length > 0 && (
               <div className="rounded-md border bg-green-50 p-3">
                 <p className="mb-2 text-xs font-medium text-green-900">
-                  Scraped URLs ({result.scraped_urls.length}):
+                  ✓ Successfully Scraped URLs ({result.scraped_urls.length}):
                 </p>
-                <ul className="space-y-1">
+                <p className="mb-2 text-xs text-green-700 italic">
+                  These are the actual URLs from Firecrawl (after following redirects)
+                </p>
+                <ul className="space-y-2">
                   {result.scraped_urls.map((url, index) => (
-                    <li key={index} className="flex items-center gap-1 text-xs text-green-800">
-                      <ExternalLink className="h-3 w-3" />
-                      <a 
-                        href={url} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="truncate hover:underline"
-                      >
-                        {url}
-                      </a>
+                    <li key={index} className="bg-white rounded p-2">
+                      <div className="flex items-start gap-2">
+                        <ExternalLink className="h-4 w-4 flex-shrink-0 mt-0.5 text-green-600" />
+                        <div className="flex-1 min-w-0">
+                          <a 
+                            href={url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm text-green-800 hover:underline font-medium break-all"
+                          >
+                            {url}
+                          </a>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>

@@ -170,6 +170,7 @@ export async function analyzeSelectedEmails(
             confidence: result.confidence,
             scraped_urls: result.scrapedUrls,
             scraped_content: result.scrapedContent || null,  // NEW: Store scraped markdown content
+            original_urls: result.originalUrls || null,  // NEW: Store SafeLinks → Actual URL mappings
             all_links_found: result.allLinksFound,
             email_html_body: result.emailHtmlBody,
             error_message: result.error || null,

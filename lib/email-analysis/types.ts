@@ -100,6 +100,7 @@ export interface AnalysisJobResult {
   dataBySource?: SourcedData[]  // NEW: Data grouped by source
   scrapedUrls: string[]
   scrapedContent?: Record<string, { markdown: string; title: string; scraped_at: string }>  // NEW: Full scraped markdown content
+  originalUrls?: Array<{ original: string; actual: string }>  // SafeLinks → Actual URL mappings
   allLinksFound: string[]  // All URLs found in email (both scraped and not)
   emailHtmlBody: string    // Original email HTML for debugging
   reasoning: string        // AI explanation (required now, not optional)

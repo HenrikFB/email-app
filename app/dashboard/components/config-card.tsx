@@ -237,15 +237,15 @@ export default function ConfigCard({ config }: ConfigCardProps) {
           Duplicate
         </Button>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => setIsEditing(true)}>
-            Edit
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => setShowDeleteConfirm(true)}
-          >
-            Delete
-          </Button>
+        <Button variant="outline" onClick={() => setIsEditing(true)}>
+          Edit
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => setShowDeleteConfirm(true)}
+        >
+          Delete
+        </Button>
         </div>
       </CardFooter>
     </Card>

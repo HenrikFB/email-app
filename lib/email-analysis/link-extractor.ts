@@ -7,9 +7,10 @@ import * as cheerio from 'cheerio'
 import type { ExtractedLink } from './types'
 
 export interface LinkExtractionOptions {
-  linkTextPattern?: string  // e.g., "Se jobbet", "View Job"
-  hrefPattern?: string      // e.g., "jobindex.dk", "linkedin.com"
+  linkTextPattern?: string  // e.g., "View Details", "Read More", "Apply"
+  hrefPattern?: string      // e.g., "example.com", "site.com"
   maxLinks?: number         // Limit number of links to extract
+  buttonTextPattern?: string // Pattern for identifying button links (e.g., "View Details|Apply|Read More")
 }
 
 /**
@@ -50,14 +51,32 @@ export function extractLinksFromHtml(
       }
     }
 
-    // Check if it looks like a button (common button classes/styles)
+    // Enhanced button detection
     const className = $el.attr('class') || ''
     const role = $el.attr('role') || ''
+    const parentClass = $el.parent().attr('class') || ''
+    const parentRole = $el.parent().attr('role') || ''
+    
+    // Check if text matches buttonTextPattern
+    let matchesButtonPattern = false
+    if (options.buttonTextPattern) {
+      const buttonPattern = new RegExp(options.buttonTextPattern, 'i')
+      matchesButtonPattern = buttonPattern.test(text)
+    }
+    
+    // Check various button indicators
     const isButton =
+      matchesButtonPattern || // Matches user-defined button pattern
       className.includes('button') ||
       className.includes('btn') ||
+      className.includes('cta') || // Call-to-action
+      className.includes('action') ||
       role === 'button' ||
-      $el.closest('button').length > 0
+      parentRole === 'button' ||
+      parentClass.includes('button') ||
+      parentClass.includes('btn') ||
+      $el.closest('button').length > 0 ||
+      $el.closest('[role="button"]').length > 0
 
     links.push({
       url: href,

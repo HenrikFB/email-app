@@ -64,12 +64,15 @@ export interface AnalysisDebugData {
     title?: string
   }>
   
+  // Step 4.5: RAG context
+  ragContext?: string
+  
   // Step 5: Email Analysis (NEW - full context)
   emailAnalysis?: {
     matched: boolean
     usedChunking: boolean
     confidence: number
-    extractedData: Record<string, any>
+    extractedData: Record<string, unknown>
     reasoning: string
     contentLength: number
   }
@@ -93,11 +96,11 @@ export interface AnalysisDebugData {
   finalResult: {
     matched: boolean
     totalMatches: number
-    aggregatedData: Record<string, any>
+    aggregatedData: Record<string, unknown>
     overallConfidence: number
     dataBySource?: Array<{
       source: string
-      data: Record<string, any>
+      data: Record<string, unknown>
       confidence: number
     }>
   }
@@ -195,7 +198,7 @@ export function logDebugStep(
   runId: string,
   stepNumber: number,
   stepName: string,
-  data: any
+  data: Record<string, unknown>
 ): void {
   if (!DEBUG_ENABLED || !runId) return
   
@@ -270,9 +273,12 @@ export function finalizeDebugRun(
 }
 
 function generateSummary(data: Partial<AnalysisDebugData>): string {
-  const agentConfig = (data as any).agentConfig || {}
-  const emailIntent = (data as any).emailIntent || {}
-  const featuresUsed = (data as any).features_used || {}
+  const agentConfig = data.agentConfig || {
+    match_criteria: '',
+    extraction_fields: '',
+    follow_links: false
+  }
+  const emailIntent = data.emailIntent
   
   return `# Email Analysis Debug Summary
 
@@ -335,7 +341,7 @@ ${agentConfig.analysis_feedback ? `
 ---
 
 ## Step 2.5: Email Intent Analysis (NEW!)
-${emailIntent.refinedGoal ? `
+${emailIntent?.refinedGoal ? `
 **Purpose**: Understand what the user is ACTUALLY looking for beyond surface keywords
 
 **Inputs to AI**:
@@ -350,7 +356,7 @@ ${emailIntent.refinedGoal ? `
 - **Key Terms Extracted**: ${emailIntent.keyTerms?.join(', ') || 'N/A'}
 - **Expected Content**: ${emailIntent.expectedContent}
 
-**Why This Matters**: Link text is often generic ("Software Developer", "View Job"). The AI extracted these key terms to understand what should be INSIDE the links to match the user's actual needs.
+**Why This Matters**: Link text is often generic ("View Details", "Read More"). The AI extracted these key terms to understand what should be INSIDE the links to match the user's actual needs.
 ` : '(Step 2.5 was skipped - no email intent extraction performed)'}
 
 ---
@@ -359,7 +365,7 @@ ${emailIntent.refinedGoal ? `
 
 **Inputs to AI**:
 - Total links to evaluate: ${data.allLinksExtracted?.length || 0}
-- Email intent: ${emailIntent.refinedGoal ? '✅ Used' : '❌ Not available'}
+- Email intent: ${emailIntent?.refinedGoal ? '✅ Used' : '❌ Not available'}
 - Link selection guidance: ${agentConfig.link_selection_guidance ? '✅ Provided' : '❌ Not provided'}
 - Extraction examples: ${agentConfig.extraction_examples ? '✅ Helped AI understand relevance' : '❌ Not provided'}
 - Analysis feedback: ${agentConfig.analysis_feedback ? '✅ Helped AI avoid past mistakes' : '❌ Not provided'}
@@ -389,8 +395,8 @@ ${data.scrapingAttempts?.some(a => a.source) ? `
 
 **Performance**:
 - **Email Length**: ${data.emailBodyLength} chars
-- **Used Chunking**: ${(data as any).emailAnalysis?.usedChunking ? '⚠️ YES (email was exceptionally large)' : '✅ NO (analyzed in 1 API call)'}
-- **API Calls**: ${(data as any).emailAnalysis?.usedChunking ? 'Multiple (chunked fallback)' : '1 (full context) 🎉'}
+- **Used Chunking**: ${data.emailAnalysis?.usedChunking ? '⚠️ YES (email was exceptionally large)' : '✅ NO (analyzed in 1 API call)'}
+- **API Calls**: ${data.emailAnalysis?.usedChunking ? 'Multiple (chunked fallback)' : '1 (full context) 🎉'}
 
 **Inputs to AI**:
 - Match criteria: ✅ Provided
@@ -398,12 +404,12 @@ ${data.scrapingAttempts?.some(a => a.source) ? `
 - User intent: ${agentConfig.user_intent ? '✅ AI knows WHY user needs data' : '❌ Not provided'}
 - Extraction examples: ${agentConfig.extraction_examples ? '✅ AI knows EXACT output format' : '❌ Not provided'}
 - Analysis feedback: ${agentConfig.analysis_feedback ? '✅ AI avoids documented mistakes' : '❌ Not provided'}
-- RAG context: ${(data as any).ragContext ? '✅ Provided from knowledge bases' : '❌ Not used'}
+- RAG context: ${data.ragContext ? '✅ Provided from knowledge bases' : '❌ Not used'}
 
 **Email Analysis Result**:
-- **Matched**: ${(data as any).emailAnalysis?.matched ? '✅ YES' : '❌ NO'}
-- **Confidence**: ${(data as any).emailAnalysis?.confidence ? ((data as any).emailAnalysis.confidence * 100).toFixed(1) + '%' : 'N/A'}
-- **Fields Extracted**: ${(data as any).emailAnalysis?.extractedData ? Object.keys((data as any).emailAnalysis.extractedData).length : 0}
+- **Matched**: ${data.emailAnalysis?.matched ? '✅ YES' : '❌ NO'}
+- **Confidence**: ${data.emailAnalysis?.confidence ? (data.emailAnalysis.confidence * 100).toFixed(1) + '%' : 'N/A'}
+- **Fields Extracted**: ${data.emailAnalysis?.extractedData ? Object.keys(data.emailAnalysis.extractedData).length : 0}
 
 ---
 
@@ -412,10 +418,10 @@ ${data.scrapingAttempts?.some(a => a.source) ? `
 **What Changed**: Each scraped page is now analyzed INDIVIDUALLY and IN PARALLEL, not chunked.
 
 **Performance**:
-- **Pages to Analyze**: ${(data as any).scrapedPagesAnalysis?.totalPages || data.scrapedContent?.length || 0}
-- **Pages Matched**: ${(data as any).scrapedPagesAnalysis?.matchedPages || 0}
-- **Pages Requiring Chunking**: ${(data as any).scrapedPagesAnalysis?.pagesRequiringChunking || 0} (only for very large pages)
-- **API Calls**: ${(data as any).scrapedPagesAnalysis?.totalPages || data.scrapedContent?.length || 0} calls (1 per page, all in parallel) 🚀
+- **Pages to Analyze**: ${data.scrapedPagesAnalysis?.totalPages || data.scrapedContent?.length || 0}
+- **Pages Matched**: ${data.scrapedPagesAnalysis?.matchedPages || 0}
+- **Pages Requiring Chunking**: ${data.scrapedPagesAnalysis?.pagesRequiringChunking || 0} (only for very large pages)
+- **API Calls**: ${data.scrapedPagesAnalysis?.totalPages || data.scrapedContent?.length || 0} calls (1 per page, all in parallel) 🚀
 
 **Why This is Better**:
 - ✅ Each page analyzed in full context (AI sees complete page, not fragments)
@@ -424,7 +430,7 @@ ${data.scrapingAttempts?.some(a => a.source) ? `
 - ✅ Fewer total API calls (no chunking unless necessary)
 
 **Results by Source**:
-${(data as any).scrapedPagesAnalysis?.results?.map((r: any, i: number) => `
+${data.scrapedPagesAnalysis?.results?.map((r, i) => `
 ${i + 1}. **${r.source}**
    - Matched: ${r.matched ? '✅ YES' : '❌ NO'}
    - Confidence: ${(r.confidence * 100).toFixed(1)}%
@@ -449,7 +455,7 @@ ${agentConfig.analysis_feedback ? '✅ Analysis Feedback prevented AI from repea
 - **Fields Extracted**: ${Object.keys(data.finalResult?.aggregatedData || {}).length}
 
 **Source Attribution** (NEW!):
-${(data.finalResult as any)?.dataBySource?.map((s: any, i: number) => `
+${data.finalResult?.dataBySource?.map((s, i) => `
 ${i + 1}. **${s.source}**
    - Fields: ${Object.keys(s.data).length}
    - Confidence: ${(s.confidence * 100).toFixed(1)}%
@@ -461,15 +467,15 @@ ${i + 1}. **${s.source}**
 
 **Old Approach (Chunking Everything)**:
 - Email chunked into: ~${Math.ceil((data.emailBodyLength || 0) / 3000)} chunks
-- Scraped pages chunked into: ~${Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000)} chunks
-- **Total API calls**: ~${1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000)} (intent + prioritize + email chunks + scraped chunks)
+- Scraped pages chunked into: ~${Math.ceil(((data.scrapedContent || []).reduce((sum, p) => sum + (p.markdownLength || 0), 0)) / 3000)} chunks
+- **Total API calls**: ~${1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum, p) => sum + (p.markdownLength || 0), 0)) / 3000)} (intent + prioritize + email chunks + scraped chunks)
 
 **New Approach (Full Context)**:
-- Email: ${(data as any).emailAnalysis?.usedChunking ? 'Chunked (large)' : '✅ 1 API call (full context)'}
+- Email: ${data.emailAnalysis?.usedChunking ? 'Chunked (large)' : '✅ 1 API call (full context)'}
 - Scraped pages: ✅ ${(data.scrapedContent || []).length} API calls (1 per page, parallel)
-- **Total API calls**: ~${2 + ((data as any).emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length} (intent + prioritize + email + pages)
+- **Total API calls**: ~${2 + (data.emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length} (intent + prioritize + email + pages)
 
-**Savings**: ~${Math.max(0, (1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000)) - (2 + ((data as any).emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length))} fewer API calls = **${Math.round(Math.max(0, (1 - ((2 + ((data as any).emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length) / (1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum: number, p: any) => sum + (p.markdownLength || 0), 0)) / 3000))))) * 100)}% cost reduction** 💰
+**Savings**: ~${Math.max(0, (1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum, p) => sum + (p.markdownLength || 0), 0)) / 3000)) - (2 + (data.emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length))} fewer API calls = **${Math.round(Math.max(0, (1 - ((2 + (data.emailAnalysis?.usedChunking ? Math.ceil((data.emailBodyLength || 0) / 3000) : 1) + (data.scrapedContent || []).length) / (1 + 1 + Math.ceil((data.emailBodyLength || 0) / 3000) + Math.ceil(((data.scrapedContent || []).reduce((sum, p) => sum + (p.markdownLength || 0), 0)) / 3000))))) * 100)}% cost reduction** 💰
 
 ${data.finalResult?.aggregatedData && Object.keys(data.finalResult.aggregatedData).length > 0 ? `
 ## 📊 Extracted Data
@@ -489,7 +495,7 @@ ${JSON.stringify(data.finalResult.aggregatedData, null, 2)}
 - Analysis Feedback: ${agentConfig.analysis_feedback ? '✅' : '❌'}
 - Link Selection Guidance: ${agentConfig.link_selection_guidance ? '✅' : '❌'}
 - Web Search: ${agentConfig.content_retrieval_strategy !== 'scrape_only' ? '✅' : '❌'}
-- RAG/Knowledge Bases: ${(data as any).ragContextLength ? '✅' : '❌'}
+- RAG/Knowledge Bases: ${data.ragContext ? '✅' : '❌'}
 
 ### Recommendations
 ${!agentConfig.user_intent ? '💡 Consider adding **user_intent** to help AI understand WHY you need this data\n' : ''}

@@ -23,6 +23,8 @@ export interface FirecrawlScrapeResult {
     description?: string
     language?: string
     ogImage?: string
+    url?: string  // The actual URL after following redirects
+    sourceURL?: string  // The original URL that was requested
   }
   links?: string[]
 }
