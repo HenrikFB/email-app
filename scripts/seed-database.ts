@@ -1,9 +1,26 @@
 /**
  * Seed Database Script
  * 
+ * ⚠️  FOR DEVELOPMENT/DEMO ONLY
+ * 
+ * This script seeds realistic sample data for demonstration purposes.
+ * The USER_ID and sample data are NOT production credentials.
+ * 
+ * When running:
+ * - Use your own Supabase instance
+ * - Provide your own API keys via .env.local
+ * - Data will be seeded to YOUR database
+ * 
  * Populates the database with realistic end-to-end data for two use cases:
- * 1. Jobs Search - Software development job applications
- * 2. Finance - Investment opportunities and financial news
+ * 1. Jobs Search - Software development job applications (intelligent_discovery strategy)
+ * 2. Finance - Investment opportunities and financial news (scrape_and_search strategy)
+ * 
+ * Demonstrates:
+ * - All 4 content retrieval strategies
+ * - SafeLinks URL resolution (original_urls mapping)
+ * - RAG with knowledge bases
+ * - Email embeddings for semantic search
+ * - Agent configuration snapshots
  * 
  * Usage:
  *   Set environment variables:
@@ -140,9 +157,9 @@ async function seed() {
         user_intent: 'I want to track .NET and Python developer jobs in healthcare or fintech with 3-5 years experience requirement. I am particularly interested in RPA/automation roles.',
         link_selection_guidance: 'Job link titles are often generic like "Software Developer" or "IT Position" - the specific technologies (.NET, Python, RPA) are usually inside the job descriptions, not in the link text.',
         max_links_to_scrape: 8,  // Job emails can have 50-200 links, but only 3-8 are usually real job postings
-        content_retrieval_strategy: 'search_only',  // LinkedIn job links require auth, use web search to find public postings
+        content_retrieval_strategy: 'intelligent_discovery',  // LinkedIn job links have expired tokens, use intelligent discovery to find alternative public sources
         extraction_examples: '{"technologies": [".NET", "C#", "Python", "SQL Server"], "location": "Copenhagen", "experience": "3-5 years", "domain": "Healthcare"}',
-        analysis_feedback: 'Works well for LinkedIn job emails. Sometimes includes PLC/SCADA jobs which I don\'t want - need better filtering for industrial/hardware roles.',
+        analysis_feedback: 'Works well with intelligent_discovery strategy for LinkedIn emails. Successfully finds alternative sources (company career pages, other job boards) when LinkedIn tokens expire.',
       },
       {
         id: UUIDs.agentConfigFinance,
@@ -624,7 +641,7 @@ Recommendations:
     console.log('\n📨 Creating analyzed emails...')
     
     const analyzedEmails = [
-      // Jobs - Email 1
+      // Jobs - Email 1 (demonstrates intelligent_discovery with SafeLinks resolution)
       {
         id: randomUUID(),
         user_id: USER_ID,
@@ -649,6 +666,9 @@ Recommendations:
         analysis_status: 'completed',
         error_message: null,
         scraped_urls: ['https://midtjob.dk/ad/alsidig-udvikler-til-egenudviklede-losninger-barselsvikariat/qj4vyc/da'],
+        original_urls: {
+          'https://emea01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fmidtjob.dk%2Fad%2F...&data=...': 'https://midtjob.dk/ad/alsidig-udvikler-til-egenudviklede-losninger-barselsvikariat/qj4vyc/da'
+        },
         scraped_content: {
           'https://midtjob.dk/ad/alsidig-udvikler-til-egenudviklede-losninger-barselsvikariat/qj4vyc/da': {
             markdown: `# Senior .NET Developer Position - Region Midtjylland
@@ -724,7 +744,7 @@ Det er vigtigt, at du har kompetencer indenfor frontend og backend-udvikling og 
         graph_message_id: 'graph-msg-001',
       },
       
-      // Jobs - Email 2
+      // Jobs - Email 2 (demonstrates intelligent_discovery finding company career page)
       {
         id: randomUUID(),
         user_id: USER_ID,
@@ -749,6 +769,9 @@ Det er vigtigt, at du har kompetencer indenfor frontend og backend-udvikling og 
         analysis_status: 'completed',
         error_message: null,
         scraped_urls: ['https://fintechstartup.dk/careers/fullstack-developer'],
+        original_urls: {
+          'https://emea01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fwww.linkedin.com%2Fcomm%2Fjobs%2Fview%2F1234567%2F...&data=...': 'https://fintechstartup.dk/careers/fullstack-developer'
+        },
         scraped_content: {
           'https://fintechstartup.dk/careers/fullstack-developer': {
             markdown: `# Full Stack Developer - Fintech Startup
@@ -1329,6 +1352,8 @@ High`,
     console.log('='.repeat(70))
     console.log(`\nCreated:`)
     console.log(`  📋 Agent Configurations: 2`)
+    console.log(`     • Jobs agent: intelligent_discovery strategy (finds alternatives for LinkedIn)`)
+    console.log(`     • Finance agent: scrape_and_search strategy (maximum coverage)`)
     console.log(`  📚 Knowledge Bases: 4`)
     console.log(`  📄 KB Documents (text notes): ${kbDocuments.length}`)
     console.log(`  💾 KB Documents (saved emails): 2`)
@@ -1336,15 +1361,20 @@ High`,
     console.log(`  🔗 Agent-KB Assignments: ${assignments.length}`)
     console.log(`\nAll embeddings have been generated and stored.`)
     console.log(`\n✨ Special features demonstrated:`)
+    console.log(`  • intelligent_discovery strategy (finds alternative sources for gated URLs)`)
+    console.log(`  • SafeLinks resolution (original_urls mapping)`)
     console.log(`  • Agent config snapshots saved in KB documents`)
     console.log(`  • Analyzed email snapshots saved in KB documents`)
     console.log(`  • Full scraped content stored in analyzed emails`)
+    console.log(`  • RAG context from knowledge bases`)
+    console.log(`  • Semantic search via embeddings`)
     console.log(`\nYou can now:`)
     console.log(`  1. View agent configurations in the dashboard`)
     console.log(`  2. Browse knowledge bases and documents`)
     console.log(`  3. View analyzed emails in the results page`)
     console.log(`  4. Test semantic search with "Find Similar"`)
     console.log(`  5. Check kb_documents to see snapshot metadata`)
+    console.log(`  6. Inspect original_urls field for SafeLinks resolution`)
     console.log(`\nUser ID: ${USER_ID}`)
     console.log('='.repeat(70) + '\n')
     
