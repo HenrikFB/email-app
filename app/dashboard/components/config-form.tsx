@@ -31,7 +31,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [userIntent, setUserIntent] = useState(config?.user_intent || '')
   const [linkGuidance, setLinkGuidance] = useState(config?.link_selection_guidance || '')
   const [maxLinksToScrape, setMaxLinksToScrape] = useState<number>(config?.max_links_to_scrape ?? 10)
-  const [contentStrategy, setContentStrategy] = useState<'scrape_only' | 'scrape_and_search' | 'search_only'>(
+  const [contentStrategy, setContentStrategy] = useState<'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'>(
     config?.content_retrieval_strategy || 'scrape_only'
   )
   const [extractionExamples, setExtractionExamples] = useState(config?.extraction_examples || '')
@@ -369,12 +369,19 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                               <span className="text-xs text-muted-foreground">Both methods (most thorough, higher cost)</span>
                             </div>
                           </SelectItem>
+                          <SelectItem value="intelligent_discovery">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Intelligent Discovery</span>
+                              <span className="text-xs text-muted-foreground">AI-driven discovery of alternative public URLs (best for expired links)</span>
+                            </div>
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         {contentStrategy === 'scrape_only' && 'Best for public URLs that Firecrawl can access directly'}
                         {contentStrategy === 'search_only' && 'Best for authenticated content like LinkedIn jobs - finds public alternatives'}
                         {contentStrategy === 'scrape_and_search' && 'Most comprehensive - combines both approaches for best results'}
+                        {contentStrategy === 'intelligent_discovery' && 'Smart web discovery - searches for alternative public URLs then scrapes them (ideal for expired tokens)'}
                       </p>
                     </div>
 

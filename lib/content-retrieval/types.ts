@@ -5,9 +5,9 @@
  * Supports multiple strategies: scraping, web search, or hybrid
  */
 
-export type ContentRetrievalStrategy = 'scrape_only' | 'scrape_and_search' | 'search_only'
+export type ContentRetrievalStrategy = 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'
 
-export type ContentSource = 'firecrawl' | 'tavily' | 'hybrid'
+export type ContentSource = 'firecrawl' | 'tavily' | 'hybrid' | 'intelligent_discovery'
 
 export interface ContentRetrievalResult {
   success: boolean
@@ -37,6 +37,7 @@ export interface RetrievalContext {
   linkText?: string
   matchCriteria?: string
   extractionFields?: string
+  runId?: string  // For debug logging
 }
 
 export interface SearchResult {

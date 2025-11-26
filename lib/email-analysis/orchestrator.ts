@@ -488,6 +488,7 @@ export async function analyzeEmail(
         emailSubject: email.subject,
         matchCriteria: input.agentConfig.match_criteria,
         extractionFields: input.agentConfig.extraction_fields,
+        runId: debugData.runId,
       }
       
       // Retrieve content from all selected links

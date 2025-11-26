@@ -6,6 +6,7 @@
 import { FirecrawlRetriever } from './firecrawl-retriever'
 import { TavilyRetriever } from './tavily-retriever'
 import { HybridRetriever } from './hybrid-retriever'
+import { IntelligentDiscoveryRetriever } from './intelligent-discovery-retriever'
 import type { ContentRetriever, ContentRetrievalStrategy } from './types'
 
 /**
@@ -27,6 +28,9 @@ export function createContentRetriever(
     
     case 'scrape_and_search':
       return new HybridRetriever()
+    
+    case 'intelligent_discovery':
+      return new IntelligentDiscoveryRetriever()
     
     default:
       console.warn(`Unknown strategy "${strategy}", defaulting to scrape_only`)
