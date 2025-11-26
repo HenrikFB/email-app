@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { ProcessingConfig } from '@/lib/document-processing/client'
 
 export interface KnowledgeBase {
   id: string
@@ -15,6 +16,9 @@ export interface KnowledgeBase {
   total_chunks: number
   created_at: string
   updated_at: string
+  // New fields for document upload configuration
+  default_processing_config: ProcessingConfig | null
+  auto_save_uploads: boolean
 }
 
 export interface CreateKnowledgeBaseInput {
@@ -23,6 +27,8 @@ export interface CreateKnowledgeBaseInput {
   type: 'manual' | 'saved_emails' | 'saved_scraped_urls'
   optimization_context?: string
   is_dynamic?: boolean
+  default_processing_config?: ProcessingConfig
+  auto_save_uploads?: boolean
 }
 
 /**
@@ -51,6 +57,8 @@ export async function createKnowledgeBase(
         type: input.type,
         optimization_context: input.optimization_context || null,
         is_dynamic: input.is_dynamic || false,
+        default_processing_config: input.default_processing_config || null,
+        auto_save_uploads: input.auto_save_uploads !== undefined ? input.auto_save_uploads : true,
       })
       .select()
       .single()

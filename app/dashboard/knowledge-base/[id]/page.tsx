@@ -5,10 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Plus, FileText, ExternalLink, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, FileText, ExternalLink, Trash2, Upload, File } from 'lucide-react'
 import { getKnowledgeBase, type KnowledgeBase } from '../actions'
 import { listDocuments, deleteDocument, type KBDocument } from '../documents/actions'
+import { createClient } from '@/lib/supabase/client'
 import TextNoteForm from '../components/text-note-form'
+import { UploadDocumentModal } from '../components/upload-document-modal'
+import { DocumentDetailModal } from '../components/document-detail-modal'
 import {
   Dialog,
   DialogContent,
@@ -27,11 +30,25 @@ export default function KnowledgeBaseDetailPage() {
   const [documents, setDocuments] = useState<KBDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [showNoteForm, setShowNoteForm] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
   const [documentToEdit, setDocumentToEdit] = useState<KBDocument | null>(null)
+  const [documentToView, setDocumentToView] = useState<KBDocument | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<KBDocument | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    async function getUserId() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+      }
+    }
+    getUserId()
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -74,8 +91,24 @@ export default function KnowledgeBaseDetailPage() {
   }
 
   const handleEditClick = (doc: KBDocument) => {
-    setDocumentToEdit(doc)
-    setShowNoteForm(true)
+    if (doc.type === 'uploaded_document') {
+      setDocumentToView(doc)
+    } else {
+      setDocumentToEdit(doc)
+      setShowNoteForm(true)
+    }
+  }
+  
+  const handleViewDocument = (doc: KBDocument) => {
+    setDocumentToView(doc)
+  }
+  
+  const handleUploadModalClose = (open: boolean) => {
+    setShowUploadModal(open)
+    if (!open) {
+      // Reload data when modal closes (documents may have been added)
+      loadData()
+    }
   }
 
   const handleDeleteClick = (doc: KBDocument) => {
@@ -139,10 +172,16 @@ export default function KnowledgeBaseDetailPage() {
           <h1 className="text-3xl font-bold tracking-tight">{kb.name}</h1>
           <p className="text-muted-foreground">{kb.description || 'No description'}</p>
         </div>
-        <Button onClick={() => setShowNoteForm(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Text Note
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowNoteForm(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Text Note
+          </Button>
+          <Button onClick={() => setShowUploadModal(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Documents
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -180,78 +219,116 @@ export default function KnowledgeBaseDetailPage() {
           <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground text-center">
-                No documents yet. Add your first text note to get started.
+                No documents yet. Add a text note or upload PDFs to get started.
               </p>
-              <div className="flex justify-center mt-4">
-                <Button onClick={() => setShowNoteForm(true)}>
+              <div className="flex justify-center gap-2 mt-4">
+                <Button variant="outline" onClick={() => setShowNoteForm(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Text Note
+                </Button>
+                <Button onClick={() => setShowUploadModal(true)}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload Documents
                 </Button>
               </div>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {documents.map((doc) => (
-              <Card key={doc.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <FileText className="h-4 w-4" />
-                        {doc.title}
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {doc.chunk_count} chunks • {doc.char_count} chars
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {doc.content}
-                  </p>
-                  
-                  {doc.context_tags && doc.context_tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {doc.context_tags.map((tag, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {tag}
+            {documents.map((doc) => {
+              const isUploaded = doc.type === 'uploaded_document'
+              const getStatusColor = (status: string | null) => {
+                if (!status) return 'default'
+                const colors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+                  pending: 'outline',
+                  processing: 'secondary',
+                  completed: 'default',
+                  failed: 'destructive',
+                  ready_for_review: 'secondary',
+                }
+                return colors[status] || 'default'
+              }
+              
+              return (
+                <Card key={doc.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          {isUploaded ? <File className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                          {doc.title}
+                        </CardTitle>
+                        <CardDescription className="text-xs mt-1 space-x-2">
+                          <span>{doc.chunk_count} chunks • {doc.char_count} chars</span>
+                          {isUploaded && doc.file_size && (
+                            <span>• {(doc.file_size / (1024 * 1024)).toFixed(1)} MB</span>
+                          )}
+                        </CardDescription>
+                      </div>
+                      <div className="flex flex-col gap-1 items-end">
+                        <Badge variant={isUploaded ? 'secondary' : 'default'}>
+                          {isUploaded ? 'PDF' : 'Text'}
                         </Badge>
-                      ))}
+                        {doc.processing_status && (
+                          <Badge variant={getStatusColor(doc.processing_status)} className="text-xs">
+                            {doc.processing_status}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  )}
-
-                  {doc.notes && (
-                    <div className="pt-2 border-t">
-                      <p className="text-xs text-muted-foreground">
-                        <strong>Notes:</strong> {doc.notes.substring(0, 100)}
-                        {doc.notes.length > 100 && '...'}
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {doc.processing_error ? (
+                      <p className="text-sm text-red-600 p-2 bg-red-50 rounded">
+                        Error: {doc.processing_error}
                       </p>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {doc.content || 'Processing...'}
+                      </p>
+                    )}
+                    
+                    {doc.context_tags && doc.context_tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {doc.context_tags.map((tag, idx) => (
+                          <Badge key={idx} variant="outline" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
 
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleEditClick(doc)}
-                    >
-                      <ExternalLink className="mr-2 h-3 w-3" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(doc)}
-                    >
-                      <Trash2 className="h-3 w-3 text-red-600" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    {doc.notes && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          <strong>Notes:</strong> {doc.notes.substring(0, 100)}
+                          {doc.notes.length > 100 && '...'}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleEditClick(doc)}
+                      >
+                        <ExternalLink className="mr-2 h-3 w-3" />
+                        {isUploaded ? 'View' : 'Edit'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteClick(doc)}
+                      >
+                        <Trash2 className="h-3 w-3 text-red-600" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -267,12 +344,29 @@ export default function KnowledgeBaseDetailPage() {
         editDocument={documentToEdit}
       />
 
+      {kb && userId && (
+        <UploadDocumentModal
+          open={showUploadModal}
+          onOpenChange={handleUploadModalClose}
+          knowledgeBaseId={kb.id}
+          userId={userId}
+          autoSaveUploads={kb.auto_save_uploads}
+        />
+      )}
+
+      <DocumentDetailModal
+        open={!!documentToView}
+        onOpenChange={(open) => !open && setDocumentToView(null)}
+        document={documentToView}
+        onSave={loadData}
+      />
+
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Document</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{documentToDelete?.title}"? This will also delete all associated chunks and embeddings. This action cannot be undone.
+              Are you sure you want to delete "{documentToDelete?.title}"? This will also delete all associated chunks and embeddings{documentToDelete?.file_path ? ' and the uploaded file' : ''}. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
