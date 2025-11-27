@@ -9,14 +9,15 @@
 
 ## 🎯 Overview
 
-An intelligent email analysis system that automatically:
+An intelligent email analysis system with AI-powered knowledge base that automatically:
 - 📨 Fetches and analyzes emails from Microsoft Graph API
 - 🔗 Extracts and prioritizes links using AI
 - 🌐 Retrieves content via multiple strategies (scraping, web search, intelligent discovery)
 - 🧠 Extracts structured data matching user-defined criteria
 - 📊 Provides source attribution and confidence scoring
+- 📚 Manages document uploads (PDFs) with page-level extraction and semantic search
 
-**Built for:** Job hunting automation, newsletter analysis, content extraction from any email type.
+**Built for:** Job hunting automation, newsletter analysis, content extraction, and knowledge management.
 
 ## ✨ Key Features
 
@@ -43,6 +44,14 @@ An intelligent email analysis system that automatically:
 - Full transparency into AI decision-making
 - Performance tracking and cost analysis
 - Structured debug output for easy troubleshooting
+
+### **📚 Knowledge Base System**
+- Upload documents (PDFs) with drag & drop interface
+- Page-level extraction - "First X pages", "Last X pages", custom ranges
+- Batch processing with auto-save or review workflows
+- Edit and reprocess documents with different settings
+- RAG integration for semantic search across all documents
+- Strategy pattern architecture for easy extensibility (DOCX, OCR coming soon)
 
 ## 🚀 How It Works
 
@@ -118,6 +127,13 @@ lib/
 │   ├── hybrid-retriever.ts
 │   └── intelligent-discovery-retriever.ts  ⭐
 │
+├── document-processing/     # Document upload & processing ⭐
+│   ├── processor.ts         # Main orchestrator
+│   ├── strategies/          # PDF, Text strategies (DOCX, OCR coming)
+│   ├── config/              # Configuration merging
+│   └── storage/             # Supabase Storage integration
+│
+├── embeddings/             # OpenAI embeddings & RAG
 ├── firecrawl/              # Firecrawl API client
 ├── tavily/                 # Tavily API client
 ├── openai/                 # OpenAI API client
@@ -127,6 +143,7 @@ app/
 ├── dashboard/
 │   ├── components/         # Agent configuration UI
 │   ├── emails/             # Email management
+│   ├── knowledge-base/     # Document upload & management ⭐
 │   └── results/            # Analysis results display
 
 supabase/
@@ -168,7 +185,7 @@ export function createContentRetriever(strategy: ContentRetrievalStrategy): Cont
 
 ## 📖 Documentation
 
-**[📊 Complete Architecture Guide](Important%20documentation/2%20.%20Complete%20Email%20Analysis%20Architecture.md)**
+### **[📊 Complete Email Analysis Architecture](Important%20documentation/2%20.%20Complete%20Email%20Analysis%20Architecture.md)**
 
 Comprehensive documentation covering:
 - Full pipeline explanation with diagrams
@@ -177,6 +194,16 @@ Comprehensive documentation covering:
 - File structure and key functions
 - Debugging guide
 - Strategy selection decision tree
+
+### **[📚 Knowledge Base Document Upload System](Important%20documentation/3%20.%20Knowledge%20Base%20Document%20Upload%20System.md)**
+
+Document processing architecture:
+- Strategy Pattern implementation for extensibility
+- Page-level PDF extraction (First X, Last X, custom ranges)
+- Batch upload with drag & drop interface
+- Configuration system and workflow options
+- Database schema and security policies
+- Technical decisions and future roadmap
 
 ## 🔧 Setup
 
@@ -261,12 +288,22 @@ npm run dev
 
 ## 🚧 Future Enhancements
 
+### **Email Analysis**
 - [ ] Cache Tavily search results
 - [ ] Learn from successful discoveries
 - [ ] Multi-agent deep research
 - [ ] Custom pipelines for specific email types
-- [ ] RAG integration with knowledge bases
 - [ ] Webhook support for real-time analysis
+
+### **Knowledge Base System**
+- [x] ✅ PDF upload with page-level extraction
+- [x] ✅ Batch processing with drag & drop
+- [x] ✅ RAG integration for semantic search
+- [ ] DOCX support
+- [ ] OCR for scanned PDFs and images
+- [ ] Table extraction (preserve structure)
+- [ ] Auto-tagging based on content
+- [ ] Duplicate detection (semantic similarity)
 
 ## 📝 License
 
