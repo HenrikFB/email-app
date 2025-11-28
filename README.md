@@ -16,6 +16,9 @@ An intelligent email analysis system with AI-powered knowledge base that automat
 - 🧠 Extracts structured data matching user-defined criteria
 - 📊 Provides source attribution and confidence scoring
 - 📚 Manages document uploads (PDFs) with page-level extraction and semantic search
+- 🔍 **Hybrid search** combining semantic + keyword matching with RRF ranking
+- 💬 **Global AI chat** for searching across all data sources
+- 🔄 **Automated KB search** when emails match criteria
 
 **Built for:** Job hunting automation, newsletter analysis, content extraction, and knowledge management.
 
@@ -53,13 +56,21 @@ An intelligent email analysis system with AI-powered knowledge base that automat
 - RAG integration for semantic search across all documents
 - Strategy pattern architecture for easy extensibility (DOCX, OCR coming soon)
 
+### **🔍 Hybrid Search & AI Chat** ⭐ NEW
+- **True Hybrid Search** - Combines semantic (vector) + full-text (keyword) with Reciprocal Rank Fusion
+- **Global Chat Widget** - Search across KBs and emails from any page
+- **Highlighted Snippets** - See matching keywords in context
+- **Multi-Intent Queries** - AI generates parallel searches for complex queries
+- **Automated KB Search** - Automatically search when emails match
+- **3 Search Strategies**: Single query, Multi-intent (split by field), AI-powered (LLM generates optimal queries)
+
 ## 🚀 How It Works
 
 ```
 📧 Email → Extract Links → AI Prioritization → Content Retrieval → AI Analysis → Structured Data
 ```
 
-### **7-Step Pipeline**
+### **8-Step Pipeline**
 
 1. **Fetch Email** - Retrieve from Microsoft Graph API
 2. **Extract Links** - Parse HTML and identify all links (with button detection)
@@ -68,6 +79,7 @@ An intelligent email analysis system with AI-powered knowledge base that automat
 5. **Email Analysis** - Extract data from email body
 6. **Page Analysis** - Extract data from scraped pages (parallel)
 7. **Aggregation** - Combine and score results
+8. **Auto KB Search** ⭐ - Search knowledge bases for related content (configurable)
 
 ### **Example: LinkedIn Job Email with Expired Token**
 
@@ -112,7 +124,7 @@ Original URL: linkedin.com/jobs/view/123456?otpToken=xyz
 ```
 lib/
 ├── email-analysis/          # Core pipeline
-│   ├── orchestrator.ts      # Main coordinator (7-step pipeline)
+│   ├── orchestrator.ts      # Main coordinator (8-step pipeline)
 │   ├── link-extractor.ts    # HTML parsing & link extraction
 │   ├── link-prioritization.ts  # AI link ranking
 │   ├── full-context-analyzer.ts  # AI content analysis
@@ -127,27 +139,46 @@ lib/
 │   ├── hybrid-retriever.ts
 │   └── intelligent-discovery-retriever.ts  ⭐
 │
-├── document-processing/     # Document upload & processing ⭐
+├── document-processing/     # Document upload & processing
 │   ├── processor.ts         # Main orchestrator
 │   ├── strategies/          # PDF, Text strategies (DOCX, OCR coming)
 │   ├── config/              # Configuration merging
 │   └── storage/             # Supabase Storage integration
 │
-├── embeddings/             # OpenAI embeddings & RAG
-├── firecrawl/              # Firecrawl API client
-├── tavily/                 # Tavily API client
-├── openai/                 # OpenAI API client
-└── graph/                  # Microsoft Graph client
+├── auto-search/             # Automated KB search ⭐ NEW
+│   ├── types.ts             # SearchMode, SearchIntent types
+│   ├── service.ts           # Main orchestrator
+│   ├── factory.ts           # Strategy factory
+│   └── strategies/          # Single, MultiIntent, AIPowered
+│
+├── chat-search/             # AI Chat system ⭐ NEW
+│   ├── types.ts             # Tool interfaces
+│   └── tools/               # KBSearchTool, EmailSearchTool
+│
+├── embeddings/              # OpenAI embeddings & hybrid search
+├── firecrawl/               # Firecrawl API client
+├── tavily/                  # Tavily API client
+├── openai/                  # OpenAI API client
+└── graph/                   # Microsoft Graph client
+
+components/
+├── chat/                    # Global chat widget ⭐ NEW
+│   ├── chat-provider.tsx    # React context for chat state
+│   └── global-chat-widget.tsx # Floating widget UI
 
 app/
 ├── dashboard/
-│   ├── components/         # Agent configuration UI
-│   ├── emails/             # Email management
-│   ├── knowledge-base/     # Document upload & management ⭐
-│   └── results/            # Analysis results display
+│   ├── components/          # Agent configuration UI
+│   ├── emails/              # Email management
+│   ├── knowledge-base/      # Document upload & management
+│   └── results/             # Analysis results display
 
 supabase/
-└── migrations/             # Database schema
+└── migrations/              # Database schema
+    ├── 021_add_automation_fields.sql
+    ├── 022_implement_true_hybrid_search.sql  # RRF search
+    ├── 023_add_search_snippets.sql
+    └── 024_add_multi_intent_search.sql
 ```
 
 ## 🎨 Design Patterns
@@ -204,6 +235,26 @@ Document processing architecture:
 - Configuration system and workflow options
 - Database schema and security policies
 - Technical decisions and future roadmap
+
+### **[🔍 Hybrid Search & Chat System](Important%20documentation/4%20.%20Hybrid%20Search%20&%20Chat%20System.md)** ⭐ NEW
+
+Search and chat architecture:
+- True Hybrid Search with Reciprocal Rank Fusion (RRF)
+- Global chat widget implementation
+- Automated KB search pipeline (Step 8)
+- Multi-intent query strategies (single, multi_intent, ai_powered)
+- PostgreSQL full-text search + vector similarity
+- Tool pattern for chat search capabilities
+
+### **[🚀 Future Architecture & Deep Research](Important%20documentation/5%20.%20Future%20Architecture%20&%20Deep%20Research.md)** ⭐ NEW
+
+Vision and roadmap:
+- Multi-agent architecture patterns
+- Deep research with sub-agents
+- Tool-based AI systems (LangChain concepts)
+- Configuration optimization with presets
+- Draft generation from KB documents
+- Implementation priorities and timeline
 
 ## 🔧 Setup
 
@@ -291,7 +342,7 @@ npm run dev
 ### **Email Analysis**
 - [ ] Cache Tavily search results
 - [ ] Learn from successful discoveries
-- [ ] Multi-agent deep research
+- [ ] Multi-agent deep research (orchestrator + sub-agents)
 - [ ] Custom pipelines for specific email types
 - [ ] Webhook support for real-time analysis
 
@@ -304,6 +355,18 @@ npm run dev
 - [ ] Table extraction (preserve structure)
 - [ ] Auto-tagging based on content
 - [ ] Duplicate detection (semantic similarity)
+
+### **Search & Chat System** ⭐ NEW
+- [x] ✅ True hybrid search (RRF combining semantic + keyword)
+- [x] ✅ Global chat widget accessible from any page
+- [x] ✅ Search both KBs and analyzed emails
+- [x] ✅ Highlighted snippets with keyword matches
+- [x] ✅ Automated KB search on email match
+- [x] ✅ Multi-intent query strategies (single, multi_intent, ai_powered)
+- [ ] Draft cover letter generator (from KB + job match)
+- [ ] User preference learning from feedback
+- [ ] Proactive notifications for deadlines
+- [ ] Market intelligence insights
 
 ## 📝 License
 

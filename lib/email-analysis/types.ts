@@ -3,6 +3,11 @@
  * All types are generic and user-defined
  */
 
+import type { MultiIntentSearchResult } from '@/lib/auto-search/types'
+
+// Re-export MultiIntentSearchResult as AutoKBSearchResult for backward compatibility
+export type AutoKBSearchResult = MultiIntentSearchResult
+
 export interface AnalysisInput {
   emailHtml: string
   emailSubject: string
@@ -73,22 +78,13 @@ export interface AnalysisJobInput {
     auto_save_matches_to_kb_id?: string  // KB ID to auto-save matched emails to
     auto_save_confidence_threshold?: number  // Min confidence (0-1) for auto-save
     auto_search_query_template?: string  // Template for generating search query (uses {{field}} placeholders)
+    
+    // Multi-intent search fields
+    auto_search_mode?: 'single' | 'multi_intent' | 'ai_powered'  // Search strategy
+    auto_search_instructions?: string  // AI instructions for query generation
+    auto_search_split_fields?: string[]  // Fields to split for multi_intent mode
+    auto_search_max_queries?: number  // Max parallel queries (1-20)
   }
-}
-
-/**
- * Result from automatic KB search when email matches
- */
-export interface AutoKBSearchResult {
-  searchPerformedAt: string
-  query: string
-  results: Array<{
-    title: string
-    kb_name: string
-    similarity: number
-    preview: string
-  }>
-  totalResults: number
 }
 
 export interface SourcedData {

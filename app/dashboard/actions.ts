@@ -24,6 +24,11 @@ export type AgentConfiguration = {
   auto_save_matches_to_kb_id: string | null
   auto_save_confidence_threshold: number | null
   auto_search_query_template: string | null
+  // Multi-intent search fields
+  auto_search_mode: 'single' | 'multi_intent' | 'ai_powered' | null
+  auto_search_instructions: string | null
+  auto_search_split_fields: string[] | null
+  auto_search_max_queries: number | null
   created_at: string
   updated_at: string
 }
@@ -72,6 +77,11 @@ export async function createConfiguration(formData: {
   auto_save_matches_to_kb_id?: string
   auto_save_confidence_threshold?: number
   auto_search_query_template?: string
+  // Multi-intent search fields
+  auto_search_mode?: 'single' | 'multi_intent' | 'ai_powered'
+  auto_search_instructions?: string
+  auto_search_split_fields?: string[]
+  auto_search_max_queries?: number
 }) {
   const supabase = await createClient()
 
@@ -118,6 +128,11 @@ export async function createConfiguration(formData: {
         auto_save_matches_to_kb_id: formData.auto_save_matches_to_kb_id || null,
         auto_save_confidence_threshold: formData.auto_save_confidence_threshold ?? 0.8,
         auto_search_query_template: formData.auto_search_query_template || null,
+        // Multi-intent search fields
+        auto_search_mode: formData.auto_search_mode || 'single',
+        auto_search_instructions: formData.auto_search_instructions || null,
+        auto_search_split_fields: formData.auto_search_split_fields || null,
+        auto_search_max_queries: formData.auto_search_max_queries ?? 5,
       },
     ])
     .select()
@@ -157,6 +172,11 @@ export async function updateConfiguration(
     auto_save_matches_to_kb_id?: string
     auto_save_confidence_threshold?: number
     auto_search_query_template?: string
+    // Multi-intent search fields
+    auto_search_mode?: 'single' | 'multi_intent' | 'ai_powered'
+    auto_search_instructions?: string
+    auto_search_split_fields?: string[]
+    auto_search_max_queries?: number
   }
 ) {
   const supabase = await createClient()
@@ -203,6 +223,11 @@ export async function updateConfiguration(
       auto_save_matches_to_kb_id: formData.auto_save_matches_to_kb_id || null,
       auto_save_confidence_threshold: formData.auto_save_confidence_threshold ?? 0.8,
       auto_search_query_template: formData.auto_search_query_template || null,
+      // Multi-intent search fields
+      auto_search_mode: formData.auto_search_mode || 'single',
+      auto_search_instructions: formData.auto_search_instructions || null,
+      auto_search_split_fields: formData.auto_search_split_fields || null,
+      auto_search_max_queries: formData.auto_search_max_queries ?? 5,
     })
     .eq('id', id)
     .eq('user_id', user.id)

@@ -142,6 +142,16 @@ export async function analyzeSelectedEmails(
             extraction_examples: agentConfig.extraction_examples || undefined,
             analysis_feedback: agentConfig.analysis_feedback || undefined,
             scraping_strategy: 'two-pass', // Use two-pass by default
+            // Automation fields
+            auto_search_kb_on_match: agentConfig.auto_search_kb_on_match ?? false,
+            auto_save_matches_to_kb_id: agentConfig.auto_save_matches_to_kb_id || undefined,
+            auto_save_confidence_threshold: agentConfig.auto_save_confidence_threshold ?? 0.8,
+            auto_search_query_template: agentConfig.auto_search_query_template || undefined,
+            // Multi-intent search fields
+            auto_search_mode: agentConfig.auto_search_mode || 'single',
+            auto_search_instructions: agentConfig.auto_search_instructions || undefined,
+            auto_search_split_fields: agentConfig.auto_search_split_fields || undefined,
+            auto_search_max_queries: agentConfig.auto_search_max_queries ?? 5,
           },
         })
 
@@ -175,6 +185,11 @@ export async function analyzeSelectedEmails(
             email_html_body: result.emailHtmlBody,
             error_message: result.error || null,
             analyzed_at: new Date().toISOString(),
+            
+            // Auto KB search results
+            kb_search_results: result.autoKBSearchResults || null,
+            kb_search_performed_at: result.autoKBSearchResults ? new Date().toISOString() : null,
+            auto_saved_to_kb_id: result.autoSavedToKBId || null,
           })
 
         analyzedCount++

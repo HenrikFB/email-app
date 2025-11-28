@@ -236,19 +236,19 @@ export default function ResultsPage() {
             AI Search
           </Button>
           
-          {selectedEmailIds.length > 0 && (
+        {selectedEmailIds.length > 0 && (
             <>
-              <Button onClick={() => setShowSaveModal(true)} variant="outline">
-                <Save className="mr-2 h-4 w-4" />
-                Save to KB ({selectedEmailIds.length})
-              </Button>
-              <Button onClick={() => openSearchModal()}>
-                <Search className="mr-2 h-4 w-4" />
-                Find Similar ({selectedEmailIds.length})
-              </Button>
+            <Button onClick={() => setShowSaveModal(true)} variant="outline">
+              <Save className="mr-2 h-4 w-4" />
+              Save to KB ({selectedEmailIds.length})
+            </Button>
+            <Button onClick={() => openSearchModal()}>
+              <Search className="mr-2 h-4 w-4" />
+              Find Similar ({selectedEmailIds.length})
+            </Button>
             </>
           )}
-        </div>
+          </div>
       </div>
 
       <div className="flex items-center justify-between gap-4">

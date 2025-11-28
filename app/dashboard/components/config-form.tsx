@@ -45,6 +45,15 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [autoSaveMatchesToKbId, setAutoSaveMatchesToKbId] = useState(config?.auto_save_matches_to_kb_id || '')
   const [autoSaveConfidenceThreshold, setAutoSaveConfidenceThreshold] = useState(config?.auto_save_confidence_threshold ?? 0.8)
   const [autoSearchQueryTemplate, setAutoSearchQueryTemplate] = useState(config?.auto_search_query_template || '')
+  // Multi-intent search fields
+  const [autoSearchMode, setAutoSearchMode] = useState<'single' | 'multi_intent' | 'ai_powered'>(
+    config?.auto_search_mode || 'single'
+  )
+  const [autoSearchInstructions, setAutoSearchInstructions] = useState(config?.auto_search_instructions || '')
+  const [autoSearchSplitFields, setAutoSearchSplitFields] = useState<string[]>(
+    config?.auto_search_split_fields || ['technologies', 'skills']
+  )
+  const [autoSearchMaxQueries, setAutoSearchMaxQueries] = useState(config?.auto_search_max_queries ?? 5)
   
   // Collapsible sections state
   const [matchingOpen, setMatchingOpen] = useState(true)
@@ -128,6 +137,11 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         auto_save_matches_to_kb_id: autoSaveMatchesToKbId || undefined,
         auto_save_confidence_threshold: autoSaveConfidenceThreshold,
         auto_search_query_template: autoSearchQueryTemplate || undefined,
+        // Multi-intent search fields
+        auto_search_mode: autoSearchMode,
+        auto_search_instructions: autoSearchInstructions || undefined,
+        auto_search_split_fields: autoSearchSplitFields.length > 0 ? autoSearchSplitFields : undefined,
+        auto_search_max_queries: autoSearchMaxQueries,
       }
 
       let configId: string
@@ -508,15 +522,15 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                         Auto-save matches to KB <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
                       </Label>
                       <Select
-                        value={autoSaveMatchesToKbId}
-                        onValueChange={setAutoSaveMatchesToKbId}
+                        value={autoSaveMatchesToKbId || '__none__'}
+                        onValueChange={(value) => setAutoSaveMatchesToKbId(value === '__none__' ? '' : value)}
                         disabled={loading}
                       >
                         <SelectTrigger id="autoSaveKb">
                           <SelectValue placeholder="Don't auto-save" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Don't auto-save</SelectItem>
+                          <SelectItem value="__none__">Don't auto-save</SelectItem>
                           {knowledgeBases.filter(kb => selectedKBIds.includes(kb.id)).map(kb => (
                             <SelectItem key={kb.id} value={kb.id}>
                               {kb.name}
@@ -548,20 +562,134 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                       </div>
                     )}
                     
+                    {/* Search Mode Selection */}
                     <div className="space-y-2">
-                      <Label htmlFor="queryTemplate">
-                        Search Query Template <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                      <Label htmlFor="searchMode">
+                        Search Mode
                       </Label>
-                      <Textarea
-                        id="queryTemplate"
-                        placeholder="E.g., {{job_title}} {{technologies}} {{location}}"
-                        value={autoSearchQueryTemplate}
-                        onChange={(e) => setAutoSearchQueryTemplate(e.target.value)}
-                        rows={2}
+                      <Select
+                        value={autoSearchMode}
+                        onValueChange={(value) => setAutoSearchMode(value as 'single' | 'multi_intent' | 'ai_powered')}
+                        disabled={loading}
+                      >
+                        <SelectTrigger id="searchMode">
+                          <SelectValue placeholder="Select search mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">
+                            <div className="flex flex-col">
+                              <span>Single Query</span>
+                              <span className="text-xs text-muted-foreground">One combined search from all data</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="multi_intent">
+                            <div className="flex flex-col">
+                              <span>Multi-Intent</span>
+                              <span className="text-xs text-muted-foreground">Separate searches for each technology/skill</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="ai_powered">
+                            <div className="flex flex-col">
+                              <span>AI-Powered</span>
+                              <span className="text-xs text-muted-foreground">LLM generates optimal queries</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {autoSearchMode === 'single' && 'Creates one search query combining all extracted fields'}
+                        {autoSearchMode === 'multi_intent' && 'Creates separate searches for each technology/skill (e.g., Python, .NET separately)'}
+                        {autoSearchMode === 'ai_powered' && 'Uses AI to analyze data and generate optimal search queries'}
+                      </p>
+                    </div>
+                    
+                    {/* Single Mode: Query Template */}
+                    {autoSearchMode === 'single' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="queryTemplate">
+                          Search Query Template <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                        </Label>
+                        <Textarea
+                          id="queryTemplate"
+                          placeholder="E.g., {{job_title}} {{technologies}} {{location}}"
+                          value={autoSearchQueryTemplate}
+                          onChange={(e) => setAutoSearchQueryTemplate(e.target.value)}
+                          rows={2}
+                          disabled={loading}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Use {`{{field_name}}`} placeholders to customize search query generation from extracted data
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Multi-Intent Mode: Split Fields */}
+                    {autoSearchMode === 'multi_intent' && (
+                      <div className="space-y-2">
+                        <Label>
+                          Fields to Search Separately
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                          {['technologies', 'skills', 'programming_languages', 'frameworks', 'tools', 'location'].map((field) => (
+                            <Badge
+                              key={field}
+                              variant={autoSearchSplitFields.includes(field) ? 'default' : 'outline'}
+                              className="cursor-pointer hover:opacity-80"
+                              onClick={() => {
+                                if (autoSearchSplitFields.includes(field)) {
+                                  setAutoSearchSplitFields(autoSearchSplitFields.filter(f => f !== field))
+                                } else {
+                                  setAutoSearchSplitFields([...autoSearchSplitFields, field])
+                                }
+                              }}
+                            >
+                              {field.replace('_', ' ')}
+                            </Badge>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Click to toggle. Each value in selected fields will be searched separately.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* AI Mode: Instructions */}
+                    {autoSearchMode === 'ai_powered' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="searchInstructions">
+                          AI Search Instructions <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                        </Label>
+                        <Textarea
+                          id="searchInstructions"
+                          placeholder="E.g., Search for each technology separately. Prioritize location matches. Focus on senior-level positions."
+                          value={autoSearchInstructions}
+                          onChange={(e) => setAutoSearchInstructions(e.target.value)}
+                          rows={3}
+                          disabled={loading}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Guide the AI on how to generate search queries from extracted data
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Max Queries */}
+                    <div className="space-y-2">
+                      <Label>
+                        Maximum Parallel Searches: {autoSearchMaxQueries}
+                      </Label>
+                      <Slider
+                        value={[autoSearchMaxQueries]}
+                        onValueChange={([value]) => setAutoSearchMaxQueries(value)}
+                        min={1}
+                        max={10}
+                        step={1}
                         disabled={loading}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Use {`{{field_name}}`} placeholders to customize search query generation from extracted data
+                        {autoSearchMode === 'multi_intent' 
+                          ? 'Limits how many separate searches to run (one per technology/skill)'
+                          : 'Limits how many different queries the AI can generate'}
                       </p>
                     </div>
                   </>

@@ -34,8 +34,8 @@ import {
 } from './debug-logger'
 import { getKBContextForRAG } from '@/lib/embeddings/service'
 import { getAssignedKBs } from '@/app/dashboard/knowledge-base/actions'
-import { performAutoKBSearch, storeKBSearchResults } from './auto-kb-search'
-import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage, AutoKBSearchResult } from './types'
+import { performAutoKBSearch, storeAutoSearchResults, type MultiIntentSearchResult } from '@/lib/auto-search'
+import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage } from './types'
 import * as cheerio from 'cheerio'
 
 /**
@@ -797,7 +797,7 @@ export async function analyzeEmail(
     finalizeDebugRun(debugRunId, debugData)
     
     // ========== STEP 8: Auto KB Search (if enabled and matched) ==========
-    let autoKBSearchResults: AutoKBSearchResult | undefined
+    let autoKBSearchResults: MultiIntentSearchResult | undefined
     let autoSavedToKBId: string | undefined
     
     if (aggregated.matched && input.agentConfig.auto_search_kb_on_match) {
@@ -811,7 +811,14 @@ export async function analyzeEmail(
         autoSearchEnabled: true,
         autoSaveKBId: input.agentConfig.auto_save_matches_to_kb_id,
         autoSaveThreshold: input.agentConfig.auto_save_confidence_threshold,
+        // New multi-intent fields
+        searchMode: input.agentConfig.auto_search_mode || 'single',
         queryTemplate: input.agentConfig.auto_search_query_template,
+        searchInstructions: input.agentConfig.auto_search_instructions,
+        splitFields: input.agentConfig.auto_search_split_fields,
+        maxQueries: input.agentConfig.auto_search_max_queries || 5,
+        userIntent: input.agentConfig.user_intent,
+        extractionFields: input.agentConfig.extraction_fields,
       })
       
       if (autoSearchResponse.searchResults) {
