@@ -18,7 +18,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, Database, Sparkles } from 'lucide-react'
 import { deleteAnalyzedEmail } from '../actions'
 import { EmailBodyViewer, ScrapedContentViewer } from '@/components/content-viewer'
 
@@ -34,6 +34,20 @@ interface SourceSelectionPayload {
   sourceId: string
   label: string
   data: Record<string, unknown>
+}
+
+interface KBSearchResult {
+  title: string
+  kb_name: string
+  similarity: number
+  preview: string
+}
+
+interface AutoKBSearchResults {
+  searchPerformedAt: string
+  query: string
+  results: KBSearchResult[]
+  totalResults: number
 }
 
 export interface AnalyzedEmailResult {
@@ -63,6 +77,10 @@ export interface AnalyzedEmailResult {
     button_text_pattern: string | null
   } | null
   scraped_content?: Record<string, { markdown: string; title?: string; scraped_at?: string }> | null
+  // Auto KB search results
+  kb_search_results?: AutoKBSearchResults | null
+  kb_search_performed_at?: string | null
+  auto_saved_to_kb_id?: string | null
 }
 
 interface ResultCardProps {
@@ -76,9 +94,10 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
-  const [showDetails, setShowDetails] = useState(false) // NEW: For collapsing entire result
-  const [showMatchedSources, setShowMatchedSources] = useState(true) // NEW: For matched sources
-  const [showRejectedSources, setShowRejectedSources] = useState(false) // NEW: For rejected sources
+  const [showDetails, setShowDetails] = useState(false) // For collapsing entire result
+  const [showMatchedSources, setShowMatchedSources] = useState(true) // For matched sources
+  const [showRejectedSources, setShowRejectedSources] = useState(false) // For rejected sources
+  const [showKBResults, setShowKBResults] = useState(true) // For KB search results
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -327,6 +346,67 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
               )}
             </div>
           </div>
+        )}
+
+        {/* Auto KB Search Results */}
+        {result.kb_search_results && result.kb_search_results.results.length > 0 && (
+          <Collapsible open={showKBResults} onOpenChange={setShowKBResults}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 border-indigo-300">
+                <span className="font-medium text-indigo-900 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                  Similar Content Found ({result.kb_search_results.totalResults})
+                </span>
+                {showKBResults ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="rounded-lg border-2 border-indigo-200 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 p-4 space-y-3">
+                <div className="text-xs text-indigo-700 flex items-center gap-2">
+                  <Database className="h-3 w-3" />
+                  <span>Auto-searched from Knowledge Bases</span>
+                  {result.kb_search_performed_at && (
+                    <span className="text-indigo-500">
+                      • {new Date(result.kb_search_performed_at).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-indigo-600 bg-indigo-100 px-2 py-1 rounded font-mono">
+                  Query: "{result.kb_search_results.query}"
+                </p>
+                <div className="space-y-2">
+                  {result.kb_search_results.results.slice(0, 5).map((kbResult, idx) => (
+                    <div key={idx} className="bg-white rounded-md p-3 shadow-sm border border-indigo-100">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 text-sm">{kbResult.title}</p>
+                          <p className="text-xs text-indigo-600">{kbResult.kb_name}</p>
+                        </div>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            kbResult.similarity >= 0.7 ? 'text-green-600 border-green-300 bg-green-50' :
+                            kbResult.similarity >= 0.5 ? 'text-yellow-600 border-yellow-300 bg-yellow-50' :
+                            'text-gray-600'
+                          }`}
+                        >
+                          {(kbResult.similarity * 100).toFixed(0)}%
+                        </Badge>
+                      </div>
+                      {kbResult.preview && (
+                        <p className="mt-2 text-xs text-gray-600 line-clamp-2">{kbResult.preview}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {result.auto_saved_to_kb_id && (
+                  <div className="text-xs text-green-700 bg-green-50 p-2 rounded flex items-center gap-2">
+                    ✅ Auto-saved to Knowledge Base
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {/* Error message */}

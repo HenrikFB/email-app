@@ -7,10 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Save, Search } from 'lucide-react'
+import { Save, Search, MessageSquare, X } from 'lucide-react'
 import ResultCard from './components/result-card'
 import SaveToKBModal from './components/save-to-kb-modal'
 import SearchModal from './components/search-modal'
+import ChatSearchPanel from './components/chat-search-panel'
 
 type FilterType = 'all' | 'matched' | 'not-matched'
 type SortType = 'date-desc' | 'date-asc' | 'confidence-desc' | 'confidence-asc'
@@ -30,6 +31,7 @@ export default function ResultsPage() {
   const [selectedEmailIds, setSelectedEmailIds] = useState<string[]>([])
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
+  const [showChatSearch, setShowChatSearch] = useState(false)
   const [sourceSearchSelections, setSourceSearchSelections] = useState<SourceSelectionInput[]>([])
 
   useEffect(() => {
@@ -223,18 +225,30 @@ export default function ResultsPage() {
             {selectedEmailIds.length > 0 && ` • ${selectedEmailIds.length} selected`}
           </p>
         </div>
-        {selectedEmailIds.length > 0 && (
-          <div className="flex gap-2">
-            <Button onClick={() => setShowSaveModal(true)} variant="outline">
-              <Save className="mr-2 h-4 w-4" />
-              Save to KB ({selectedEmailIds.length})
-            </Button>
-            <Button onClick={() => openSearchModal()}>
-              <Search className="mr-2 h-4 w-4" />
-              Find Similar ({selectedEmailIds.length})
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          {/* AI Chat Search Button - Always visible */}
+          <Button
+            onClick={() => setShowChatSearch(!showChatSearch)}
+            variant={showChatSearch ? 'default' : 'outline'}
+            className={showChatSearch ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+          >
+            <MessageSquare className="mr-2 h-4 w-4" />
+            AI Search
+          </Button>
+          
+          {selectedEmailIds.length > 0 && (
+            <>
+              <Button onClick={() => setShowSaveModal(true)} variant="outline">
+                <Save className="mr-2 h-4 w-4" />
+                Save to KB ({selectedEmailIds.length})
+              </Button>
+              <Button onClick={() => openSearchModal()}>
+                <Search className="mr-2 h-4 w-4" />
+                Find Similar ({selectedEmailIds.length})
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-4">
@@ -319,6 +333,26 @@ export default function ResultsPage() {
         agentConfigId={agentConfigIdForSearch}
         selectedSources={sourceSearchSelections}
       />
+
+      {/* AI Chat Search Panel - Floating on the right side */}
+      {showChatSearch && (
+        <div className="fixed right-6 bottom-6 w-[450px] z-50 shadow-2xl">
+          <ChatSearchPanel
+            agentConfigId={agentConfigIdForSearch}
+            currentEmailId={selectedEmailIds[0]}
+            initialContext={
+              selectedEmailIds[0]
+                ? {
+                    extracted_data: emails.find(e => e.id === selectedEmailIds[0])?.extracted_data,
+                    email_subject: emails.find(e => e.id === selectedEmailIds[0])?.email_subject,
+                    email_from: emails.find(e => e.id === selectedEmailIds[0])?.email_from,
+                  }
+                : undefined
+            }
+            onClose={() => setShowChatSearch(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

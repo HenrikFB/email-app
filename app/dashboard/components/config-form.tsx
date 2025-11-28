@@ -9,8 +9,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Database, ChevronDown, ChevronUp } from 'lucide-react'
+import { Database, ChevronDown, ChevronUp, Sparkles, Zap } from 'lucide-react'
 import { createConfiguration, updateConfiguration, type AgentConfiguration } from '../actions'
 import { listKnowledgeBases, assignKBsToAgentConfig, getAssignedKBs, type KnowledgeBase } from '../knowledge-base/actions'
 
@@ -39,10 +40,17 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
+  // Automation fields
+  const [autoSearchKbOnMatch, setAutoSearchKbOnMatch] = useState(config?.auto_search_kb_on_match || false)
+  const [autoSaveMatchesToKbId, setAutoSaveMatchesToKbId] = useState(config?.auto_save_matches_to_kb_id || '')
+  const [autoSaveConfidenceThreshold, setAutoSaveConfidenceThreshold] = useState(config?.auto_save_confidence_threshold ?? 0.8)
+  const [autoSearchQueryTemplate, setAutoSearchQueryTemplate] = useState(config?.auto_search_query_template || '')
+  
   // Collapsible sections state
   const [matchingOpen, setMatchingOpen] = useState(true)
   const [linksOpen, setLinksOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [automationOpen, setAutomationOpen] = useState(false)
   
   // Knowledge base assignment
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
@@ -115,6 +123,11 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         content_retrieval_strategy: contentStrategy,
         extraction_examples: extractionExamples || undefined,
         analysis_feedback: analysisFeedback || undefined,
+        // Automation fields
+        auto_search_kb_on_match: autoSearchKbOnMatch,
+        auto_save_matches_to_kb_id: autoSaveMatchesToKbId || undefined,
+        auto_save_confidence_threshold: autoSaveConfidenceThreshold,
+        auto_search_query_template: autoSearchQueryTemplate || undefined,
       }
 
       let configId: string
@@ -145,6 +158,11 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         setExtractionExamples('')
         setAnalysisFeedback('')
         setSelectedKBIds([])
+        // Reset automation fields
+        setAutoSearchKbOnMatch(false)
+        setAutoSaveMatchesToKbId('')
+        setAutoSaveConfidenceThreshold(0.8)
+        setAutoSearchQueryTemplate('')
       }
 
       onSuccess?.()
@@ -439,7 +457,120 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
             </div>
           </Collapsible>
 
-          {/* SECTION 4: Advanced Options (Collapsible) */}
+          {/* SECTION 4: Automation Settings (Collapsible) */}
+          <Collapsible open={automationOpen} onOpenChange={setAutomationOpen}>
+            <div className="space-y-4 pb-4 border-b">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <Zap className="h-5 w-5 mr-2 text-amber-500" />
+                  Automation Settings
+                  <Badge variant="outline" className="ml-2 text-xs bg-amber-50">New</Badge>
+                </h3>
+                {automationOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="space-y-4 pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Configure automatic actions when emails match your criteria.
+                </p>
+                
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="autoSearchKb"
+                    checked={autoSearchKbOnMatch}
+                    onCheckedChange={(checked) => setAutoSearchKbOnMatch(checked as boolean)}
+                    disabled={loading || selectedKBIds.length === 0}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="autoSearchKb"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2"
+                    >
+                      <Sparkles className="h-4 w-4 text-indigo-500" />
+                      Auto-search KB on match
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      When an email matches, automatically search assigned KBs for similar content
+                    </p>
+                  </div>
+                </div>
+                
+                {selectedKBIds.length === 0 && (
+                  <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    Assign at least one Knowledge Base (in Advanced Options) to enable automation
+                  </p>
+                )}
+                
+                {autoSearchKbOnMatch && selectedKBIds.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="autoSaveKb">
+                        Auto-save matches to KB <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                      </Label>
+                      <Select
+                        value={autoSaveMatchesToKbId}
+                        onValueChange={setAutoSaveMatchesToKbId}
+                        disabled={loading}
+                      >
+                        <SelectTrigger id="autoSaveKb">
+                          <SelectValue placeholder="Don't auto-save" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Don't auto-save</SelectItem>
+                          {knowledgeBases.filter(kb => selectedKBIds.includes(kb.id)).map(kb => (
+                            <SelectItem key={kb.id} value={kb.id}>
+                              {kb.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically save matched emails to this KB when confidence is high enough
+                      </p>
+                    </div>
+                    
+                    {autoSaveMatchesToKbId && (
+                      <div className="space-y-2">
+                        <Label>
+                          Confidence Threshold: {Math.round(autoSaveConfidenceThreshold * 100)}%
+                        </Label>
+                        <Slider
+                          value={[autoSaveConfidenceThreshold * 100]}
+                          onValueChange={([value]) => setAutoSaveConfidenceThreshold(value / 100)}
+                          min={50}
+                          max={100}
+                          step={5}
+                          disabled={loading}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Only auto-save when AI confidence meets this threshold
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="queryTemplate">
+                        Search Query Template <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
+                      </Label>
+                      <Textarea
+                        id="queryTemplate"
+                        placeholder="E.g., {{job_title}} {{technologies}} {{location}}"
+                        value={autoSearchQueryTemplate}
+                        onChange={(e) => setAutoSearchQueryTemplate(e.target.value)}
+                        rows={2}
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use {`{{field_name}}`} placeholders to customize search query generation from extracted data
+                      </p>
+                    </div>
+                  </>
+                )}
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {/* SECTION 5: Advanced Options (Collapsible) */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <div className="space-y-4">
               <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">

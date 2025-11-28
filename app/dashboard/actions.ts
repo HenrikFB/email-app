@@ -16,9 +16,14 @@ export type AgentConfiguration = {
   user_intent: string | null
   link_selection_guidance: string | null
   max_links_to_scrape: number | null
-  content_retrieval_strategy: 'scrape_only' | 'scrape_and_search' | 'search_only' | null
+  content_retrieval_strategy: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | null
   extraction_examples: string | null
   analysis_feedback: string | null
+  // Automation fields
+  auto_search_kb_on_match: boolean | null
+  auto_save_matches_to_kb_id: string | null
+  auto_save_confidence_threshold: number | null
+  auto_search_query_template: string | null
   created_at: string
   updated_at: string
 }
@@ -59,9 +64,14 @@ export async function createConfiguration(formData: {
   user_intent?: string
   link_selection_guidance?: string
   max_links_to_scrape?: number
-  content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only'
+  content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'
   extraction_examples?: string
   analysis_feedback?: string
+  // Automation fields
+  auto_search_kb_on_match?: boolean
+  auto_save_matches_to_kb_id?: string
+  auto_save_confidence_threshold?: number
+  auto_search_query_template?: string
 }) {
   const supabase = await createClient()
 
@@ -103,6 +113,11 @@ export async function createConfiguration(formData: {
         content_retrieval_strategy: formData.content_retrieval_strategy || 'scrape_only',
         extraction_examples: formData.extraction_examples || null,
         analysis_feedback: formData.analysis_feedback || null,
+        // Automation fields
+        auto_search_kb_on_match: formData.auto_search_kb_on_match ?? false,
+        auto_save_matches_to_kb_id: formData.auto_save_matches_to_kb_id || null,
+        auto_save_confidence_threshold: formData.auto_save_confidence_threshold ?? 0.8,
+        auto_search_query_template: formData.auto_search_query_template || null,
       },
     ])
     .select()
@@ -134,9 +149,14 @@ export async function updateConfiguration(
     user_intent?: string
     link_selection_guidance?: string
     max_links_to_scrape?: number
-    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only'
+    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'
     extraction_examples?: string
     analysis_feedback?: string
+    // Automation fields
+    auto_search_kb_on_match?: boolean
+    auto_save_matches_to_kb_id?: string
+    auto_save_confidence_threshold?: number
+    auto_search_query_template?: string
   }
 ) {
   const supabase = await createClient()
@@ -178,6 +198,11 @@ export async function updateConfiguration(
       content_retrieval_strategy: formData.content_retrieval_strategy || 'scrape_only',
       extraction_examples: formData.extraction_examples || null,
       analysis_feedback: formData.analysis_feedback || null,
+      // Automation fields
+      auto_search_kb_on_match: formData.auto_search_kb_on_match ?? false,
+      auto_save_matches_to_kb_id: formData.auto_save_matches_to_kb_id || null,
+      auto_save_confidence_threshold: formData.auto_save_confidence_threshold ?? 0.8,
+      auto_search_query_template: formData.auto_search_query_template || null,
     })
     .eq('id', id)
     .eq('user_id', user.id)
@@ -265,6 +290,11 @@ export async function duplicateConfiguration(id: string, newName: string) {
         content_retrieval_strategy: original.content_retrieval_strategy,
         extraction_examples: original.extraction_examples,
         analysis_feedback: original.analysis_feedback,
+        // Automation fields
+        auto_search_kb_on_match: original.auto_search_kb_on_match,
+        auto_save_matches_to_kb_id: original.auto_save_matches_to_kb_id,
+        auto_save_confidence_threshold: original.auto_save_confidence_threshold,
+        auto_search_query_template: original.auto_search_query_template,
       },
     ])
     .select()

@@ -458,3 +458,62 @@ export async function searchSimilar(
   }
 }
 
+/**
+ * Chat-based search using AI tool calling
+ * Provides intelligent query understanding and multi-intent detection
+ */
+export async function handleChatSearch(
+  query: string,
+  agentConfigId?: string,
+  currentEmailId?: string,
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<{
+  success: boolean
+  response?: string
+  kbResults?: any[]
+  emailResults?: any[]
+  toolsUsed?: string[]
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { success: false, error: 'Not authenticated' }
+    }
+    
+    // Import chat search service
+    const { chatSearch } = await import('@/lib/chat-search')
+    
+    // Execute chat search
+    const result = await chatSearch(query, {
+      userId: user.id,
+      agentConfigId,
+      currentEmailId,
+      conversationHistory: conversationHistory?.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+    })
+    
+    return {
+      success: result.success,
+      response: result.response,
+      kbResults: result.kbResults,
+      emailResults: result.emailResults,
+      toolsUsed: result.toolsUsed,
+      error: result.error,
+    }
+  } catch (error) {
+    console.error('❌ Error in chat search:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+

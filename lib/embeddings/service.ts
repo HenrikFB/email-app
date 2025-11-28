@@ -204,15 +204,18 @@ export async function searchKnowledgeBases(
     const queryEmbedding = await generateEmbedding(query)
     console.log(`   ✅ Embedding generated: ${queryEmbedding.length} dimensions`)
     
-    // Call PostgreSQL function for hybrid search
-    console.log('🔎 Executing hybrid search RPC...')
+    // Call PostgreSQL function for TRUE hybrid search (keyword + semantic with RRF)
+    console.log('🔎 Executing hybrid search RPC (keyword + semantic)...')
     const { data, error } = await supabase.rpc('hybrid_search_knowledge_base', {
       query_embedding: queryEmbedding,
       query_text: query,
       search_user_id: userId,
       kb_ids: kbIds || null,
       match_threshold: matchThreshold,
-      match_count: limit
+      match_count: limit,
+      full_text_weight: 1.0,  // Equal weight for keyword matches
+      semantic_weight: 1.0,   // Equal weight for semantic matches
+      rrf_k: 50               // RRF smoothing constant
     })
     
     if (error) {
@@ -302,13 +305,17 @@ export async function searchAnalyzedEmails(
     const queryEmbedding = await generateEmbedding(query)
     console.log(`   ✅ Embedding generated: ${queryEmbedding.length} dimensions`)
     
-    // Call PostgreSQL function
-    console.log('🔎 Executing email search RPC...')
+    // Call PostgreSQL function for TRUE hybrid search
+    console.log('🔎 Executing email search RPC (keyword + semantic)...')
     const { data, error } = await supabase.rpc('search_analyzed_emails', {
       query_embedding: queryEmbedding,
       search_user_id: userId,
       match_threshold: matchThreshold,
-      match_count: limit
+      match_count: limit,
+      query_text: query,        // Now passed for full-text search
+      full_text_weight: 1.0,
+      semantic_weight: 1.0,
+      rrf_k: 50
     })
     
     if (error) {

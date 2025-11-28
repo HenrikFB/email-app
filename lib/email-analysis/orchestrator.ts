@@ -34,7 +34,8 @@ import {
 } from './debug-logger'
 import { getKBContextForRAG } from '@/lib/embeddings/service'
 import { getAssignedKBs } from '@/app/dashboard/knowledge-base/actions'
-import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage } from './types'
+import { performAutoKBSearch, storeKBSearchResults } from './auto-kb-search'
+import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage, AutoKBSearchResult } from './types'
 import * as cheerio from 'cheerio'
 
 /**
@@ -795,6 +796,39 @@ export async function analyzeEmail(
     // ========== Finalize Debug Run ==========
     finalizeDebugRun(debugRunId, debugData)
     
+    // ========== STEP 8: Auto KB Search (if enabled and matched) ==========
+    let autoKBSearchResults: AutoKBSearchResult | undefined
+    let autoSavedToKBId: string | undefined
+    
+    if (aggregated.matched && input.agentConfig.auto_search_kb_on_match) {
+      console.log('\n🔄 STEP 8: Performing automatic KB search...')
+      
+      const autoSearchResponse = await performAutoKBSearch({
+        userId: input.userId,
+        agentConfigId: input.agentConfigId,
+        extractedData: aggregated.aggregatedData,
+        confidence: aggregated.overallConfidence,
+        autoSearchEnabled: true,
+        autoSaveKBId: input.agentConfig.auto_save_matches_to_kb_id,
+        autoSaveThreshold: input.agentConfig.auto_save_confidence_threshold,
+        queryTemplate: input.agentConfig.auto_search_query_template,
+      })
+      
+      if (autoSearchResponse.searchResults) {
+        autoKBSearchResults = autoSearchResponse.searchResults
+        console.log(`✅ Auto KB search found ${autoSearchResponse.searchResults.totalResults} results`)
+      }
+      
+      if (autoSearchResponse.autoSavedToKB) {
+        autoSavedToKBId = autoSearchResponse.autoSavedToKB
+        console.log(`📤 Email flagged for auto-save to KB: ${autoSavedToKBId}`)
+      }
+    } else if (!aggregated.matched) {
+      console.log('\n⏭️  STEP 8: Skipping auto KB search (no match)')
+    } else {
+      console.log('\n⏭️  STEP 8: Skipping auto KB search (disabled)')
+    }
+    
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1)
     
     console.log('\n' + '═'.repeat(70))
@@ -802,6 +836,9 @@ export async function analyzeEmail(
     console.log('═'.repeat(70))
     console.log(`Result: ${aggregated.matched ? '✓ MATCHED' : '✗ No match'}`)
     console.log(`Confidence: ${(aggregated.overallConfidence * 100).toFixed(0)}%`)
+    if (autoKBSearchResults) {
+      console.log(`Auto KB Search: ${autoKBSearchResults.totalResults} results found`)
+    }
     console.log(`Debug: debug-analysis-runs/${debugRunId}`)
     console.log('═'.repeat(70) + '\n')
     
@@ -815,7 +852,7 @@ export async function analyzeEmail(
       }
     })
     
-    // Return result
+    // Return result (including auto KB search results for storage)
     return {
       success: true,
       emailId: input.emailId,
@@ -830,7 +867,9 @@ export async function analyzeEmail(
       reasoning: aggregated.totalMatches > 0
         ? `Matched in ${aggregated.totalMatches} source(s): ${matchedAnalyses.map(a => a.source).join(', ')}. ${emailAnalysis.matched ? emailAnalysis.reasoning : scrapedAnalyses.find(a => a.matched)?.reasoning || ''}`
         : 'No matches found in email or scraped pages',
-      confidence: aggregated.overallConfidence
+      confidence: aggregated.overallConfidence,
+      autoKBSearchResults: autoKBSearchResults,
+      autoSavedToKBId: autoSavedToKBId,
     }
     
   } catch (error) {
