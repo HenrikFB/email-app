@@ -47,8 +47,8 @@ export async function getEmailsFromConnection(
     }
 
     // Use skipToken if provided
-    if (filters.pageToken) {
-      graphFilters.skipToken = filters.pageToken
+    if (filters.skipToken) {
+      graphFilters.skipToken = filters.skipToken
     }
 
     // Fetch emails from Microsoft Graph
@@ -152,6 +152,9 @@ export async function analyzeSelectedEmails(
             auto_search_instructions: agentConfig.auto_search_instructions || undefined,
             auto_search_split_fields: agentConfig.auto_search_split_fields || undefined,
             auto_search_max_queries: agentConfig.auto_search_max_queries ?? 5,
+            // Deep Agent / Draft generation fields
+            draft_generation_enabled: agentConfig.draft_generation_enabled ?? false,
+            draft_instructions: agentConfig.draft_instructions || undefined,
           },
         })
 

@@ -88,14 +88,16 @@ export async function performAutoKBSearch(
     // Format results
     response.searchResults = {
       searchPerformedAt: new Date().toISOString(),
-      query: searchQuery,
+      searchMode: 'single',
+      queries: [{ query: searchQuery, resultCount: kbResults.length }],
       results: kbResults.slice(0, 10).map((r: any) => ({
         title: r.document_title || 'Untitled',
-        kb_name: r.kb_name || 'Unknown KB',
+        kbName: r.kb_name || 'Unknown KB',
         similarity: r.similarity || 0,
         preview: r.content?.substring(0, 200) || '',
       })),
       totalResults: kbResults.length,
+      processingTimeMs: 0,
     }
     
     console.log(`   ✅ Found ${kbResults.length} KB matches`)

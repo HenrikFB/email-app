@@ -22,6 +22,11 @@ export interface ScrapedPage {
   url: string
   markdown: string
   title?: string
+  metadata?: {
+    actualUrl?: string
+    originalUrl?: string
+    discoveryMethod?: string
+  }
 }
 
 export interface AnalysisResult {
@@ -68,7 +73,7 @@ export interface AnalysisJobInput {
     user_intent?: string  // Optional: user's explanation of their goal
     link_selection_guidance?: string  // Optional: guidance for link selection
     max_links_to_scrape?: number  // Optional: maximum links to scrape (default: 10)
-    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only'  // How to retrieve content
+    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | 'deep_agent'  // How to retrieve content
     extraction_examples?: string  // Optional: user-provided examples
     analysis_feedback?: string  // Optional: user feedback/notes
     scraping_strategy?: ScrapingStrategy // Optional, defaults to 'two-pass'
@@ -84,6 +89,10 @@ export interface AnalysisJobInput {
     auto_search_instructions?: string  // AI instructions for query generation
     auto_search_split_fields?: string[]  // Fields to split for multi_intent mode
     auto_search_max_queries?: number  // Max parallel queries (1-20)
+    
+    // Deep Agent / Draft generation fields
+    draft_generation_enabled?: boolean  // Enable draft generation (requires deep_agent strategy)
+    draft_instructions?: string  // Free-form instructions for what to draft
   }
 }
 
@@ -127,5 +136,18 @@ export interface AnalysisJobResult {
   // Auto KB search results (if enabled)
   autoKBSearchResults?: AutoKBSearchResult
   autoSavedToKBId?: string  // KB ID if auto-saved
+  
+  // Deep Agent results (if deep_agent strategy used)
+  generatedDraft?: {
+    content: string
+    kbSourcesUsed: Array<{ documentId: string; documentTitle: string; snippetUsed: string }>
+    metadata: {
+      reasoning: string
+      iterations: number
+      confidence: number
+      processingTimeMs: number
+    }
+  }
+  webSourcesSearched?: Array<{ url: string; title: string; content: string }>
 }
 

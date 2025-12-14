@@ -34,7 +34,9 @@ import {
 } from './debug-logger'
 import { getKBContextForRAG } from '@/lib/embeddings/service'
 import { getAssignedKBs } from '@/app/dashboard/knowledge-base/actions'
-import { performAutoKBSearch, storeAutoSearchResults, type MultiIntentSearchResult } from '@/lib/auto-search'
+import { performAutoKBSearch, type MultiIntentSearchResult } from '@/lib/auto-search'
+import { runDeepAgentPipeline, type DeepAgentInput } from '@/lib/deep-agent'
+import { createClient } from '@/lib/supabase/server'
 import type { AnalysisJobInput, AnalysisJobResult, ScrapedPage } from './types'
 import * as cheerio from 'cheerio'
 
@@ -44,8 +46,7 @@ import * as cheerio from 'cheerio'
  */
 async function analyzeHtmlStructure(
   html: string,
-  buttonTextPattern: string | null | undefined,
-  matchCriteria: string
+  buttonTextPattern: string | null | undefined
 ): Promise<{
   potentialSections: number
   buttonMatches: number
@@ -191,7 +192,7 @@ function deduplicateUrls(urls: string[]): string[] {
       // Remove trailing slashes for consistency
       normalized = normalized.replace(/\/$/, '')
       
-    } catch (e) {
+    } catch {
       // If URL parsing fails, use as-is
       console.warn(`⚠️  Could not parse URL for deduplication: ${url}`)
     }
@@ -227,7 +228,15 @@ export async function analyzeEmail(
   console.log(`📋 Extraction Fields: ${input.agentConfig.extraction_fields}`)
   console.log(`🔗 Follow Links: ${input.agentConfig.follow_links}`)
   console.log(`🔘 Button Pattern: ${input.agentConfig.button_text_pattern || 'None'}`)
+  console.log(`📦 Strategy: ${input.agentConfig.content_retrieval_strategy || 'scrape_only'}`)
   console.log('─'.repeat(70))
+  
+  // ========== DEEP AGENT BRANCH ==========
+  // If using deep_agent strategy, route to the Deep Agent pipeline
+  if (input.agentConfig.content_retrieval_strategy === 'deep_agent') {
+    console.log('\n🤖 Using DEEP AGENT pipeline...')
+    return await runDeepAgentAnalysis(input)
+  }
   
   let debugRunId = ''
   const debugData: Partial<AnalysisDebugData> = {}
@@ -287,8 +296,7 @@ export async function analyzeEmail(
     
     const htmlStructure = await analyzeHtmlStructure(
       emailHtmlBody,
-      input.agentConfig.button_text_pattern,
-      input.agentConfig.match_criteria
+      input.agentConfig.button_text_pattern
     )
     
     console.log(`✅ HTML structure analysis:`)
@@ -473,7 +481,7 @@ export async function analyzeEmail(
     
     // ========== STEP 4: Retrieve Content from Selected Links ==========
     let scrapedPages: ScrapedPage[] = []
-    let urlMappings: Array<{ original: string; actual: string }> = []
+    const urlMappings: Array<{ original: string; actual: string }> = []
     debugData.scrapingAttempts = []
     debugData.scrapedContent = []
     
@@ -509,7 +517,7 @@ export async function analyzeEmail(
       // Convert to ScrapedPage format and track URL mappings
       scrapedPages = retrievalResults
         .filter(result => result.success && result.content)
-        .map((result, index) => {
+        .map((result) => {
           // Track mapping: original SafeLinks URL → actual redirected URL
           const originalUrl = selectedLinks[retrievalResults.indexOf(result)]
           if (originalUrl !== result.url) {
@@ -713,7 +721,7 @@ export async function analyzeEmail(
     
     // Merge all extracted data intelligently
     // Strategy: scraped pages provide detailed info, email provides summary
-    const aggregatedData: Record<string, any> = {}
+    const aggregatedData: Record<string, unknown> = {}
     
     // Start with email data (summary info)
     if (emailAnalysis.matched) {
@@ -773,10 +781,10 @@ export async function analyzeEmail(
     const apiCallsUsed = 
       1 + // intent extraction
       1 + // link prioritization
-      (emailAnalysis.usedChunking ? 'multiple' : 1) + // email analysis
-      scrapedAnalyses.reduce((sum, a) => sum + (a.usedChunking ? 'multiple' : 1), 0) // scraped analyses
+      (emailAnalysis.usedChunking ? 3 : 1) + // email analysis (estimate 3 for chunked)
+      scrapedAnalyses.reduce((sum, a) => sum + (a.usedChunking ? 3 : 1), 0) // scraped analyses
     
-    console.log(`   API calls: ~${typeof apiCallsUsed === 'number' ? apiCallsUsed : apiCallsUsed} (vs ${43} in old chunked approach)`)
+    console.log(`   API calls: ~${apiCallsUsed} (vs ${43} in old chunked approach)`)
     
     logDebugStep(debugRunId, 7, 'aggregation-complete', {
       matched: aggregated.matched,
@@ -854,7 +862,7 @@ export async function analyzeEmail(
     scrapedPages.forEach(page => {
       scrapedContent[page.url] = {
         markdown: page.markdown,
-        title: page.title,
+        title: page.title || 'Untitled',
         scraped_at: new Date().toISOString()
       }
     })
@@ -903,6 +911,140 @@ export async function analyzeEmail(
       reasoning: 'Analysis failed',
       confidence: 0,
       error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
+// ============================================
+// Deep Agent Analysis Branch
+// ============================================
+
+/**
+ * Run email analysis using the Deep Agent pipeline
+ * Uses sub-agents for web research, KB search, and draft generation
+ */
+async function runDeepAgentAnalysis(input: AnalysisJobInput): Promise<AnalysisJobResult> {
+  try {
+    // Get assigned KB IDs
+    const kbResult = await getAssignedKBs(input.agentConfigId)
+    const knowledgeBaseIds = kbResult.success ? (kbResult.data || []) : []
+
+    // Build deep agent input
+    const deepAgentInput: DeepAgentInput = {
+      userId: input.userId,
+      agentConfigId: input.agentConfigId,
+      accessToken: input.accessToken,
+      emailId: input.emailId,
+      config: {
+        matchCriteria: input.agentConfig.match_criteria,
+        extractionFields: input.agentConfig.extraction_fields,
+        userIntent: input.agentConfig.user_intent,
+        draftGenerationEnabled: input.agentConfig.draft_generation_enabled || false,
+        draftInstructions: input.agentConfig.draft_instructions,
+        knowledgeBaseIds,
+      },
+    }
+
+    // Run the deep agent pipeline
+    const result = await runDeepAgentPipeline(deepAgentInput)
+
+    // Save generated draft to database if present
+    let savedDraftId: string | undefined
+    if (result.generatedDraft && result.success) {
+      try {
+        const supabase = await createClient()
+        const { data: draftData, error: draftError } = await supabase
+          .from('generated_drafts')
+          .insert({
+            user_id: input.userId,
+            analyzed_email_id: null, // Will be updated after email is saved
+            agent_configuration_id: input.agentConfigId,
+            draft_content: result.generatedDraft.content,
+            kb_sources_used: result.generatedDraft.kbSourcesUsed,
+            generation_metadata: {
+              reasoning: result.generatedDraft.metadata.reasoning,
+              iterations: result.generatedDraft.metadata.iterations,
+              searchQueries: result.generatedDraft.metadata.searchQueries,
+              confidence: result.generatedDraft.metadata.confidence,
+              modelUsed: result.generatedDraft.metadata.modelUsed,
+              processingTimeMs: result.generatedDraft.metadata.processingTimeMs,
+              webSourcesSearched: result.generatedDraft.metadata.webSourcesSearched,
+            },
+          })
+          .select('id')
+          .single()
+
+        if (draftError) {
+          console.error('Failed to save draft:', draftError)
+        } else {
+          savedDraftId = draftData.id
+          console.log('✅ Draft saved with ID:', savedDraftId)
+        }
+      } catch (error) {
+        console.error('Error saving draft:', error)
+      }
+    }
+
+    // Convert deep agent result to standard AnalysisJobResult
+    return {
+      success: result.success,
+      emailId: result.emailId,
+      matched: result.matched,
+      extractedData: result.extractedData,
+      dataBySource: [], // Deep agent doesn't use the same source structure
+      scrapedUrls: [], // No scraping in deep agent - uses web search
+      scrapedContent: undefined,
+      allLinksFound: [], // Not applicable for deep agent
+      emailHtmlBody: '', // Would need to fetch email again if needed
+      reasoning: result.reasoning,
+      confidence: result.confidence,
+      error: result.error,
+      // Deep agent specific fields
+      webSourcesSearched: result.webSourcesSearched,
+      generatedDraft: result.generatedDraft ? {
+        content: result.generatedDraft.content,
+        kbSourcesUsed: result.generatedDraft.kbSourcesUsed,
+        metadata: {
+          reasoning: result.generatedDraft.metadata.reasoning,
+          iterations: result.generatedDraft.metadata.iterations,
+          confidence: result.generatedDraft.metadata.confidence,
+          processingTimeMs: result.generatedDraft.metadata.processingTimeMs,
+        },
+      } : undefined,
+      // Auto KB search results from deep agent
+      autoKBSearchResults: result.kbSourcesFound.length > 0 ? {
+        searchPerformedAt: new Date().toISOString(),
+        searchMode: 'ai_powered',
+        queries: [],
+        results: result.kbSourcesFound.map(r => ({
+          title: r.documentTitle,
+          kbName: r.knowledgeBaseName,
+          similarity: r.similarity,
+          preview: r.content.substring(0, 200),
+          sourceIntent: r.sourceQuery,
+          matchType: r.matchType,
+          documentId: r.documentId,
+          knowledgeBaseId: r.knowledgeBaseId,
+        })),
+        totalResults: result.kbSourcesFound.length,
+        processingTimeMs: result.processingTimeMs,
+      } : undefined,
+    }
+  } catch (error) {
+    console.error('❌ Deep Agent analysis failed:', error)
+    
+    return {
+      success: false,
+      emailId: input.emailId,
+      matched: false,
+      extractedData: {},
+      dataBySource: [],
+      scrapedUrls: [],
+      allLinksFound: [],
+      emailHtmlBody: '',
+      reasoning: 'Deep agent analysis failed',
+      confidence: 0,
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }

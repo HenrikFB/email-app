@@ -19,7 +19,26 @@ import type {
   KBSearchResult,
   EmailSearchResult,
   ChatCompletionMessageParam,
+  ToolExecutionResult,
+  ToolResultItem,
 } from './types'
+
+// Database query result types
+interface KnowledgeBaseAssignment {
+  knowledge_bases: {
+    id: string
+    name: string
+  } | null
+}
+
+interface AgentDataWithAssignments {
+  id: string
+  name: string
+  match_criteria?: string | null
+  extraction_fields?: string | null
+  user_intent?: string | null
+  agent_kb_assignments?: KnowledgeBaseAssignment[] | null
+}
 
 // ============================================
 // OpenAI Client
@@ -196,17 +215,20 @@ async function loadSearchContext(
       .single()
     
     if (agentData) {
-      const assignments = (agentData.agent_kb_assignments || []) as any[]
-      const kbs = assignments.map((a: any) => a.knowledge_bases).filter(Boolean)
+      const typedAgentData = agentData as unknown as AgentDataWithAssignments
+      const assignments = typedAgentData.agent_kb_assignments || []
+      const kbs = assignments
+        .map((a) => a.knowledge_bases)
+        .filter((kb): kb is NonNullable<typeof kb> => Boolean(kb))
       
       context.agent = {
-        id: agentData.id,
-        name: agentData.name,
-        match_criteria: agentData.match_criteria || undefined,
-        extraction_fields: agentData.extraction_fields || undefined,
-        user_intent: agentData.user_intent || undefined,
-        assigned_kb_ids: kbs.map((kb: any) => kb.id),
-        assigned_kb_names: kbs.map((kb: any) => kb.name),
+        id: typedAgentData.id,
+        name: typedAgentData.name,
+        match_criteria: typedAgentData.match_criteria || undefined,
+        extraction_fields: typedAgentData.extraction_fields || undefined,
+        user_intent: typedAgentData.user_intent || undefined,
+        assigned_kb_ids: kbs.map((kb) => kb.id),
+        assigned_kb_names: kbs.map((kb) => kb.name),
       }
       
       console.log(`   ✅ Agent: ${context.agent.name}`)
@@ -275,17 +297,20 @@ function buildMessages(
 async function executeToolCallsFromResponse(
   toolCalls: OpenAI.ChatCompletionMessageToolCall[],
   context: ToolExecutionContext
-): Promise<Map<string, { result: any; toolName: string }>> {
-  const results = new Map<string, { result: any; toolName: string }>()
+): Promise<Map<string, { result: ToolExecutionResult; toolName: string }>> {
+  const results = new Map<string, { result: ToolExecutionResult; toolName: string }>()
   
   await Promise.all(
     toolCalls.map(async (toolCall) => {
-      const args = JSON.parse(toolCall.function.arguments)
-      const result = await executeToolCall(toolCall.function.name, args, context)
-      results.set(toolCall.id, {
-        result,
-        toolName: toolCall.function.name,
-      })
+      // Handle both standard function calls and custom tool calls
+      if (toolCall.type === 'function') {
+        const args = JSON.parse(toolCall.function.arguments)
+        const result = await executeToolCall(toolCall.function.name, args, context)
+        results.set(toolCall.id, {
+          result,
+          toolName: toolCall.function.name,
+        })
+      }
     })
   )
   
@@ -297,10 +322,19 @@ async function executeToolCallsFromResponse(
  */
 function buildToolResultMessages(
   toolCalls: OpenAI.ChatCompletionMessageToolCall[],
-  results: Map<string, { result: any; toolName: string }>
+  results: Map<string, { result: ToolExecutionResult; toolName: string }>
 ): ChatCompletionMessageParam[] {
-  return toolCalls.map((toolCall) => {
-    const { result } = results.get(toolCall.id) || { result: { error: 'No result' } }
+  return toolCalls.filter(tc => tc.type === 'function').map((toolCall) => {
+    const toolResult = results.get(toolCall.id)
+    if (!toolResult) {
+      return {
+        role: 'tool' as const,
+        tool_call_id: toolCall.id,
+        content: JSON.stringify({ error: 'No result' }),
+      }
+    }
+    
+    const { result } = toolResult
     
     return {
       role: 'tool' as const,
@@ -309,7 +343,7 @@ function buildToolResultMessages(
         success: result.success,
         source: result.source,
         count: result.count,
-        results: result.results?.slice(0, 5).map((r: any) => ({
+        results: result.results?.slice(0, 5).map((r: ToolResultItem) => ({
           title: r.title,
           subtitle: r.subtitle,
           similarity: r.similarity ? `${Math.round(r.similarity * 100)}%` : undefined,
@@ -325,7 +359,7 @@ function buildToolResultMessages(
  * Aggregate results from tool executions
  */
 function aggregateResults(
-  results: Map<string, { result: any; toolName: string }>
+  results: Map<string, { result: ToolExecutionResult; toolName: string }>
 ): {
   kbResults: KBSearchResult[]
   emailResults: EmailSearchResult[]
@@ -342,39 +376,42 @@ function aggregateResults(
     
     for (const item of result.results) {
       if (result.source === 'knowledge_base') {
+        const metadata = item.metadata as Record<string, unknown> | undefined
         kbResults.push({
           chunk_id: item.id,
           document_id: item.id,
           document_title: item.title,
-          document_type: item.metadata?.document_type || 'unknown',
+          document_type: (metadata?.document_type as string) || 'unknown',
           knowledge_base_id: '',
           kb_name: item.subtitle || '',
-          kb_type: item.metadata?.kb_type || 'manual',
+          kb_type: (metadata?.kb_type as string) || 'manual',
           content: item.preview || '',
           similarity: item.similarity || 0,
-          chunk_index: item.metadata?.chunk_index || 0,
-          context_tags: item.metadata?.context_tags,
+          chunk_index: (metadata?.chunk_index as number) || 0,
+          context_tags: metadata?.context_tags as string[] | undefined,
         })
       } else if (result.source === 'analyzed_emails') {
+        const metadata = item.metadata as Record<string, unknown> | undefined
         emailResults.push({
           email_id: item.id,
           email_subject: item.title,
           email_from: item.subtitle || '',
-          matched: item.metadata?.matched || false,
+          matched: (metadata?.matched as boolean) || false,
           similarity: item.similarity || 0,
-          content_type: item.metadata?.content_type || 'extracted_data',
-          source_url: item.metadata?.source_url,
+          content_type: (metadata?.content_type as string) || 'extracted_data',
+          source_url: metadata?.source_url as string | undefined,
           embedded_text: item.preview || '',
         })
       } else if (result.source === 'exact_match') {
+        const metadata = item.metadata as Record<string, unknown> | undefined
         // Exact matches go to appropriate bucket based on metadata
-        if (item.metadata?.source_type === 'email') {
+        if (metadata?.source_type === 'email') {
           emailResults.push({
             email_id: item.id,
             email_subject: item.title,
             email_from: item.subtitle || '',
-            matched: item.metadata?.matched || false,
-            extracted_data: item.metadata?.extracted_data,
+            matched: (metadata?.matched as boolean) || false,
+            extracted_data: metadata?.extracted_data as Record<string, unknown> | undefined,
             similarity: item.similarity || 1,
             content_type: 'extracted_data',
             embedded_text: item.preview || '',
@@ -384,14 +421,14 @@ function aggregateResults(
             chunk_id: item.id,
             document_id: item.id,
             document_title: item.title,
-            document_type: item.metadata?.document_type || 'unknown',
+            document_type: (metadata?.document_type as string) || 'unknown',
             knowledge_base_id: '',
             kb_name: item.subtitle || '',
             kb_type: 'manual',
             content: item.preview || '',
             similarity: item.similarity || 1,
             chunk_index: 0,
-            context_tags: item.metadata?.context_tags,
+            context_tags: metadata?.context_tags as string[] | undefined,
           })
         }
       }

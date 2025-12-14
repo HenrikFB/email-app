@@ -18,8 +18,12 @@ export interface ContentRetrievalResult {
   metadata: {
     title?: string
     originalUrl?: string  // Original URL if search found alternative
+    actualUrl?: string    // The resolved URL after redirects (e.g., from SafeLinks)
     confidence?: number  // For search results, how confident we are
     searchQuery?: string  // Query used if this came from search
+    discoveryMethod?: string  // How the content was discovered (e.g., 'web_search_then_scrape')
+    alternativeSources?: string[]  // Other URLs found during discovery
+    error?: string  // Error message if discovery failed
   }
   error?: string
 }

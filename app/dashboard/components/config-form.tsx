@@ -32,7 +32,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   const [userIntent, setUserIntent] = useState(config?.user_intent || '')
   const [linkGuidance, setLinkGuidance] = useState(config?.link_selection_guidance || '')
   const [maxLinksToScrape, setMaxLinksToScrape] = useState<number>(config?.max_links_to_scrape ?? 10)
-  const [contentStrategy, setContentStrategy] = useState<'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'>(
+  const [contentStrategy, setContentStrategy] = useState<'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | 'deep_agent'>(
     config?.content_retrieval_strategy || 'scrape_only'
   )
   const [extractionExamples, setExtractionExamples] = useState(config?.extraction_examples || '')
@@ -55,11 +55,16 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
   )
   const [autoSearchMaxQueries, setAutoSearchMaxQueries] = useState(config?.auto_search_max_queries ?? 5)
   
+  // Deep Agent / Draft generation fields
+  const [draftGenerationEnabled, setDraftGenerationEnabled] = useState(config?.draft_generation_enabled || false)
+  const [draftInstructions, setDraftInstructions] = useState(config?.draft_instructions || '')
+  
   // Collapsible sections state
   const [matchingOpen, setMatchingOpen] = useState(true)
   const [linksOpen, setLinksOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [automationOpen, setAutomationOpen] = useState(false)
+  const [deepAgentOpen, setDeepAgentOpen] = useState(contentStrategy === 'deep_agent')
   
   // Knowledge base assignment
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
@@ -142,6 +147,9 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
         auto_search_instructions: autoSearchInstructions || undefined,
         auto_search_split_fields: autoSearchSplitFields.length > 0 ? autoSearchSplitFields : undefined,
         auto_search_max_queries: autoSearchMaxQueries,
+        // Deep Agent / Draft generation fields
+        draft_generation_enabled: draftGenerationEnabled,
+        draft_instructions: draftInstructions || undefined,
       }
 
       let configId: string
@@ -407,6 +415,14 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                               <span className="text-xs text-muted-foreground">AI-driven discovery of alternative public URLs (best for expired links)</span>
                             </div>
                           </SelectItem>
+                          <SelectItem value="deep_agent">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium flex items-center gap-1">
+                                <Sparkles className="h-3 w-3" /> Deep Agent
+                              </span>
+                              <span className="text-xs text-muted-foreground">AI agents with web search, KB search, and draft generation</span>
+                            </div>
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
@@ -414,6 +430,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                         {contentStrategy === 'search_only' && 'Best for authenticated content like LinkedIn jobs - finds public alternatives'}
                         {contentStrategy === 'scrape_and_search' && 'Most comprehensive - combines both approaches for best results'}
                         {contentStrategy === 'intelligent_discovery' && 'Smart web discovery - searches for alternative public URLs then scrapes them (ideal for expired tokens)'}
+                        {contentStrategy === 'deep_agent' && 'Advanced AI pipeline - uses web search (Tavily), multi-intent KB search, and can generate drafts based on your instructions'}
                       </p>
                     </div>
 
@@ -698,7 +715,131 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
             </div>
           </Collapsible>
 
-          {/* SECTION 5: Advanced Options (Collapsible) */}
+          {/* SECTION 5: Deep Agent / Draft Generation (Collapsible) */}
+          {contentStrategy === 'deep_agent' && (
+            <Collapsible open={deepAgentOpen} onOpenChange={setDeepAgentOpen}>
+              <div className="space-y-4 pb-4 border-b">
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Sparkles className="mr-2 h-5 w-5 text-purple-500" />
+                    Deep Agent Settings
+                    <Badge variant="outline" className="ml-2 text-xs bg-purple-50">AI Pipeline</Badge>
+                  </h3>
+                  {deepAgentOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="space-y-4 pt-2">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-2">
+                    <h4 className="font-medium text-purple-900">How Deep Agent Works</h4>
+                    <ul className="text-sm text-purple-800 space-y-1">
+                      <li>• <strong>Email Analysis:</strong> Parses email and extracts entities, technologies, companies</li>
+                      <li>• <strong>Web Research:</strong> Uses Tavily to search for public sources (no scraping)</li>
+                      <li>• <strong>KB Search:</strong> Multi-intent search of your knowledge base</li>
+                      <li>• <strong>Draft Generation:</strong> Creates drafts using KB content as reference</li>
+                    </ul>
+                  </div>
+                  
+                  {/* Draft Generation Toggle */}
+                  <div className="flex items-start space-x-2">
+                    <Checkbox
+                      id="draftGenerationEnabled"
+                      checked={draftGenerationEnabled}
+                      onCheckedChange={(checked) => setDraftGenerationEnabled(checked as boolean)}
+                      disabled={loading}
+                    />
+                    <div className="grid gap-1.5 leading-none">
+                      <label
+                        htmlFor="draftGenerationEnabled"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Enable Draft Generation
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically generate drafts (responses, summaries, analyses, etc.) based on your instructions and KB content
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Draft Instructions */}
+                  {draftGenerationEnabled && (
+                    <div className="space-y-2 pt-2">
+                      <Label htmlFor="draftInstructions">
+                        Draft Instructions
+                      </Label>
+                      <Textarea
+                        id="draftInstructions"
+                        placeholder={`Example: Draft a response to this email.
+
+Use content from my knowledge base as a style reference.
+Address the key points from the extracted data.
+Keep the tone professional.
+Include relevant examples from my KB.
+Maximum 400 words.`}
+                        value={draftInstructions}
+                        onChange={(e) => setDraftInstructions(e.target.value)}
+                        rows={8}
+                        disabled={loading}
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Describe what you want the AI to draft. Be specific about format, length, tone, and what to include.
+                        The AI will use your KB content as a style reference and incorporate extracted data from the email.
+                      </p>
+                      
+                      {/* Example Templates */}
+                      <div className="pt-2">
+                        <Label className="text-xs text-muted-foreground mb-2 block">Quick templates:</Label>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge 
+                            variant="outline" 
+                            className="cursor-pointer hover:bg-purple-50"
+                            onClick={() => setDraftInstructions(`Draft a professional response to this email.
+
+Use my knowledge base content as a style reference.
+Address the main points from the extracted data.
+Keep the tone professional but friendly.
+Include relevant examples from my KB.
+Maximum 400 words.`)}
+                          >
+                            Response Draft
+                          </Badge>
+                          <Badge 
+                            variant="outline" 
+                            className="cursor-pointer hover:bg-purple-50"
+                            onClick={() => setDraftInstructions(`Create a brief summary of this email.
+
+Include:
+- Key points and main message
+- Important extracted data
+- Relevant context from my KB
+- Suggested next steps
+
+Keep it under 200 words.`)}
+                          >
+                            Summary
+                          </Badge>
+                          <Badge 
+                            variant="outline" 
+                            className="cursor-pointer hover:bg-purple-50"
+                            onClick={() => setDraftInstructions(`Draft a response to this recruiter email.
+
+Express interest in the position.
+Briefly mention 2-3 relevant experiences from my knowledge base.
+Ask 1-2 thoughtful questions about the role.
+Keep it concise and professional.`)}
+                          >
+                            Recruiter Response
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )}
+
+          {/* SECTION 6: Advanced Options (Collapsible) */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <div className="space-y-4">
               <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-70 transition-opacity">

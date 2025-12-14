@@ -45,3 +45,6 @@ next-env.d.ts
 
 # search debug runs
 /debug-search-runs
+
+# deep agent debug runs
+/debug-deep-agent

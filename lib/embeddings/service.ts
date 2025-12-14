@@ -224,11 +224,11 @@ export async function searchKnowledgeBases(
     }
     
     const results = data || []
-    const similarities = results.map((r: any) => r.similarity || 0)
+    const similarities: number[] = results.map((r: { similarity?: number }) => r.similarity || 0)
     const minSim = similarities.length > 0 ? Math.min(...similarities) : 0
     const maxSim = similarities.length > 0 ? Math.max(...similarities) : 0
     const avgSim = similarities.length > 0 
-      ? similarities.reduce((a, b) => a + b, 0) / similarities.length 
+      ? similarities.reduce((a: number, b: number) => a + b, 0) / similarities.length 
       : 0
     
     console.log('─'.repeat(70))
@@ -324,11 +324,11 @@ export async function searchAnalyzedEmails(
     }
     
     const results = data || []
-    const similarities = results.map((r: any) => r.similarity || 0)
+    const similarities: number[] = results.map((r: { similarity?: number }) => r.similarity || 0)
     const minSim = similarities.length > 0 ? Math.min(...similarities) : 0
     const maxSim = similarities.length > 0 ? Math.max(...similarities) : 0
     const avgSim = similarities.length > 0 
-      ? similarities.reduce((a, b) => a + b, 0) / similarities.length 
+      ? similarities.reduce((a: number, b: number) => a + b, 0) / similarities.length 
       : 0
     
     console.log('─'.repeat(70))

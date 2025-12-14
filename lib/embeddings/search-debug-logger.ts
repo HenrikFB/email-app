@@ -374,7 +374,7 @@ function generateSearchSummary(data: Partial<SearchDebugData>): string {
 - **Run ID**: ${data.runId}
 - **Query**: ${data.query}
 - **Timestamp**: ${data.timestamp}
-- **Similarity Threshold**: ${data.threshold} (${(data.threshold * 100).toFixed(0)}%)
+- **Similarity Threshold**: ${data.threshold ?? 0.7} (${((data.threshold ?? 0.7) * 100).toFixed(0)}%)
 - **Result Limit**: ${data.limit}
 
 ## Knowledge Base Selection

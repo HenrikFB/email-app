@@ -16,7 +16,7 @@ export type AgentConfiguration = {
   user_intent: string | null
   link_selection_guidance: string | null
   max_links_to_scrape: number | null
-  content_retrieval_strategy: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | null
+  content_retrieval_strategy: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | 'deep_agent' | null
   extraction_examples: string | null
   analysis_feedback: string | null
   // Automation fields
@@ -29,6 +29,9 @@ export type AgentConfiguration = {
   auto_search_instructions: string | null
   auto_search_split_fields: string[] | null
   auto_search_max_queries: number | null
+  // Deep Agent / Draft generation fields
+  draft_generation_enabled: boolean | null
+  draft_instructions: string | null
   created_at: string
   updated_at: string
 }
@@ -69,7 +72,7 @@ export async function createConfiguration(formData: {
   user_intent?: string
   link_selection_guidance?: string
   max_links_to_scrape?: number
-  content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'
+  content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | 'deep_agent'
   extraction_examples?: string
   analysis_feedback?: string
   // Automation fields
@@ -82,6 +85,9 @@ export async function createConfiguration(formData: {
   auto_search_instructions?: string
   auto_search_split_fields?: string[]
   auto_search_max_queries?: number
+  // Deep Agent / Draft generation fields
+  draft_generation_enabled?: boolean
+  draft_instructions?: string
 }) {
   const supabase = await createClient()
 
@@ -133,6 +139,9 @@ export async function createConfiguration(formData: {
         auto_search_instructions: formData.auto_search_instructions || null,
         auto_search_split_fields: formData.auto_search_split_fields || null,
         auto_search_max_queries: formData.auto_search_max_queries ?? 5,
+        // Deep Agent / Draft generation fields
+        draft_generation_enabled: formData.draft_generation_enabled ?? false,
+        draft_instructions: formData.draft_instructions || null,
       },
     ])
     .select()
@@ -164,7 +173,7 @@ export async function updateConfiguration(
     user_intent?: string
     link_selection_guidance?: string
     max_links_to_scrape?: number
-    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery'
+    content_retrieval_strategy?: 'scrape_only' | 'scrape_and_search' | 'search_only' | 'intelligent_discovery' | 'deep_agent'
     extraction_examples?: string
     analysis_feedback?: string
     // Automation fields
@@ -177,6 +186,9 @@ export async function updateConfiguration(
     auto_search_instructions?: string
     auto_search_split_fields?: string[]
     auto_search_max_queries?: number
+    // Deep Agent / Draft generation fields
+    draft_generation_enabled?: boolean
+    draft_instructions?: string
   }
 ) {
   const supabase = await createClient()
@@ -228,6 +240,9 @@ export async function updateConfiguration(
       auto_search_instructions: formData.auto_search_instructions || null,
       auto_search_split_fields: formData.auto_search_split_fields || null,
       auto_search_max_queries: formData.auto_search_max_queries ?? 5,
+      // Deep Agent / Draft generation fields
+      draft_generation_enabled: formData.draft_generation_enabled ?? false,
+      draft_instructions: formData.draft_instructions || null,
     })
     .eq('id', id)
     .eq('user_id', user.id)
@@ -320,6 +335,14 @@ export async function duplicateConfiguration(id: string, newName: string) {
         auto_save_matches_to_kb_id: original.auto_save_matches_to_kb_id,
         auto_save_confidence_threshold: original.auto_save_confidence_threshold,
         auto_search_query_template: original.auto_search_query_template,
+        // Multi-intent search fields
+        auto_search_mode: original.auto_search_mode,
+        auto_search_instructions: original.auto_search_instructions,
+        auto_search_split_fields: original.auto_search_split_fields,
+        auto_search_max_queries: original.auto_search_max_queries,
+        // Deep Agent / Draft generation fields
+        draft_generation_enabled: original.draft_generation_enabled,
+        draft_instructions: original.draft_instructions,
       },
     ])
     .select()

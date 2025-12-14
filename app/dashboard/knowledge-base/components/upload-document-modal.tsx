@@ -97,7 +97,14 @@ export function UploadDocumentModal({
   }
 
   const handleUploadSuccess = async (files: UploadedFile[]) => {
-    setUploadedFiles(files.map(f => ({ ...f, status: 'uploaded' as const })))
+    setUploadedFiles(files.map(f => ({ 
+      id: crypto.randomUUID(),
+      name: f.name,
+      size: f.size,
+      type: f.type,
+      storagePath: f.path,
+      status: 'uploaded' as const 
+    })))
     setIsProcessing(true)
     setProcessingProgress(0)
 
