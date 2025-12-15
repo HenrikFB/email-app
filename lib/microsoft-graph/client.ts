@@ -191,9 +191,82 @@ export async function getAccountInfo(accessToken: string): Promise<MicrosoftAcco
 }
 
 /**
+ * Simple HTML to text conversion (server-side safe)
+ * Used when Microsoft Graph only returns HTML content
+ */
+function htmlToPlainText(html: string): string {
+  if (!html) return ''
+  
+  let text = html
+    // Remove script and style content
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Replace common HTML entities
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    // Replace <br> and <p> tags with newlines
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    // Remove HTML tags
+    .replace(/<[^>]+>/g, '')
+    // Decode numeric entities (basic)
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([a-f\d]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+  
+  // Clean up whitespace
+  text = text
+    .replace(/\s+/g, ' ')
+    .replace(/\n\s*\n/g, '\n\n')
+    .trim()
+  
+  return text
+}
+
+/**
  * Normalizes Microsoft Graph email to our Email interface
  */
 function normalizeEmail(graphEmail: MicrosoftEmail): Email {
+  // Determine body content
+  let body: string | undefined
+  let bodyHtml: string | undefined
+
+  // Debug: log what we're receiving
+  if (!graphEmail.body) {
+    console.warn('Email body is missing from Microsoft Graph response:', {
+      emailId: graphEmail.id,
+      subject: graphEmail.subject,
+      hasBodyPreview: !!graphEmail.bodyPreview,
+    })
+  } else {
+    console.log('Processing email body:', {
+      contentType: graphEmail.body.contentType,
+      contentLength: graphEmail.body.content?.length || 0,
+    })
+  }
+
+  if (graphEmail.body) {
+    if (graphEmail.body.contentType === 'text') {
+      body = graphEmail.body.content
+      bodyHtml = undefined
+    } else if (graphEmail.body.contentType === 'html') {
+      bodyHtml = graphEmail.body.content
+      // Extract plain text from HTML if we only have HTML
+      body = htmlToPlainText(graphEmail.body.content)
+    } else {
+      // Fallback: if contentType is something else, try to use content as-is
+      console.warn('Unknown body contentType:', graphEmail.body.contentType)
+      bodyHtml = graphEmail.body.content
+      body = htmlToPlainText(graphEmail.body.content)
+    }
+  }
+
   return {
     id: graphEmail.id,
     from: {
@@ -212,8 +285,8 @@ function normalizeEmail(graphEmail: MicrosoftEmail): Email {
     date: graphEmail.receivedDateTime,
     receivedDateTime: graphEmail.receivedDateTime,
     snippet: graphEmail.bodyPreview,
-    body: graphEmail.body?.contentType === 'text' ? graphEmail.body.content : undefined,
-    bodyHtml: graphEmail.body?.contentType === 'html' ? graphEmail.body.content : undefined,
+    body,
+    bodyHtml,
     hasAttachments: graphEmail.hasAttachments,
     isRead: graphEmail.isRead,
     isDraft: false, // Microsoft Graph doesn't return this in list view
@@ -350,22 +423,53 @@ export async function getEmailById(
   accessToken: string,
   emailId: string
 ): Promise<Email> {
-  const response = await fetch(
-    `https://graph.microsoft.com/v1.0/me/messages/${emailId}?$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,bodyPreview,body,hasAttachments,isRead,internetMessageId,attachments`,
-    {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    }
-  )
+  const result = await getEmailByIdWithRaw(accessToken, emailId)
+  return result.email
+}
+
+/**
+ * Gets a specific email by ID with full body content and raw Microsoft Graph response
+ */
+export async function getEmailByIdWithRaw(
+  accessToken: string,
+  emailId: string
+): Promise<{ email: Email; rawResponse: MicrosoftEmail }> {
+  // Explicitly request body field and use headers to get unfiltered content
+  const url = `https://graph.microsoft.com/v1.0/me/messages/${emailId}?$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,bodyPreview,body,hasAttachments,isRead,internetMessageId,attachments`
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Prefer': 'outlook.allow-unsafe-html', // Get unfiltered HTML content
+    },
+  })
 
   if (!response.ok) {
     const error = await response.text()
+    console.error('Microsoft Graph API error:', error)
     throw new Error(`Failed to get email: ${error}`)
   }
 
   const graphEmail: MicrosoftEmail = await response.json()
-  return normalizeEmail(graphEmail)
+  
+  // Debug logging to see what we're getting - log the full response structure
+  console.log('Microsoft Graph email response keys:', Object.keys(graphEmail))
+  console.log('Microsoft Graph email body field:', {
+    hasBody: !!graphEmail.body,
+    bodyType: typeof graphEmail.body,
+    bodyValue: graphEmail.body ? JSON.stringify(graphEmail.body).substring(0, 200) : 'null',
+    bodyContentType: graphEmail.body?.contentType,
+    bodyContentLength: graphEmail.body?.content?.length || 0,
+  })
+  
+  // Log full response for debugging (truncated)
+  const responseStr = JSON.stringify(graphEmail, null, 2)
+  console.log('Full Microsoft Graph response (first 1000 chars):', responseStr.substring(0, 1000))
+  
+  return {
+    email: normalizeEmail(graphEmail),
+    rawResponse: graphEmail,
+  }
 }
 
 /**

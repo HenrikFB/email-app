@@ -22,15 +22,19 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Email } from '@/lib/microsoft-graph/client'
+import { EmailDetailSheet } from './components/email-detail-sheet'
 
 interface EmailsDataTableProps {
   emails: Email[]
   selectedEmails: string[]
   onSelectionChange: (selected: string[]) => void
+  connectionId: string
 }
 
-export function EmailsDataTable({ emails, selectedEmails, onSelectionChange }: EmailsDataTableProps) {
+export function EmailsDataTable({ emails, selectedEmails, onSelectionChange, connectionId }: EmailsDataTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
+  const [selectedEmailId, setSelectedEmailId] = React.useState<string | null>(null)
+  const [sheetOpen, setSheetOpen] = React.useState(false)
 
   const columns: ColumnDef<Email>[] = [
     {
@@ -173,6 +177,15 @@ export function EmailsDataTable({ emails, selectedEmails, onSelectionChange }: E
                 <TableRow
                   key={row.id}
                   data-state={selectedEmails.includes(row.original.id) && 'selected'}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={(e) => {
+                    // Don't open sheet if clicking on checkbox
+                    if ((e.target as HTMLElement).closest('button, [role="checkbox"]')) {
+                      return
+                    }
+                    setSelectedEmailId(row.original.id)
+                    setSheetOpen(true)
+                  }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -220,6 +233,15 @@ export function EmailsDataTable({ emails, selectedEmails, onSelectionChange }: E
           </Button>
         </div>
       </div>
+
+      {/* Email Detail Sheet */}
+      <EmailDetailSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        emailId={selectedEmailId}
+        connectionId={connectionId}
+        initialEmail={emails.find(e => e.id === selectedEmailId)}
+      />
     </div>
   )
 }

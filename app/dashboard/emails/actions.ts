@@ -1,9 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { fetchEmails, getEmailById, type EmailFetchOptions, type Email } from '@/lib/microsoft-graph/client'
+import { fetchEmails, getEmailById, type EmailFetchOptions, type Email, type MicrosoftEmail } from '@/lib/microsoft-graph/client'
 import { analyzeEmail } from '@/lib/email-analysis/orchestrator'
 import { revalidatePath } from 'next/cache'
+import { getEmailProvider } from '@/lib/email-provider/factory'
 
 export async function getEmailsFromConnection(
   connectionId: string,
@@ -256,6 +257,95 @@ export async function analyzeSelectedEmails(
       matched: matchedCount,
       failed: failedCount,
       error: error instanceof Error ? error.message : 'Failed to analyze emails' 
+    }
+  }
+}
+
+/**
+ * Get full email details with body content (plain text and HTML)
+ * Uses provider factory to support both Microsoft Graph and Aurinko
+ * Returns both normalized email and raw API response
+ */
+export async function getFullEmailDetails(
+  connectionId: string,
+  emailId: string
+): Promise<{ email: Email | null; rawResponse?: MicrosoftEmail | null; error?: string }> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { email: null, error: 'Not authenticated' }
+  }
+
+  // Get the email connection
+  const { data: connection, error: connError } = await supabase
+    .from('email_connections')
+    .select('*')
+    .eq('id', connectionId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (connError || !connection) {
+    return { email: null, error: 'Email connection not found' }
+  }
+
+  try {
+    console.log('Fetching full email details:', {
+      connectionId,
+      emailId,
+      provider: connection.provider,
+      hasToken: !!connection.aurinko_access_token,
+    })
+    
+    // For Microsoft Graph, use getEmailByIdWithRaw to get raw response
+    // For other providers, we'll need to implement similar functionality
+    if (connection.provider === 'Microsoft') {
+      const { getEmailByIdWithRaw } = await import('@/lib/microsoft-graph/client')
+      const result = await getEmailByIdWithRaw(
+        connection.aurinko_access_token,
+        emailId
+      )
+      
+      console.log('Email fetched successfully:', {
+        emailId: result.email.id,
+        subject: result.email.subject,
+        hasBody: !!result.email.body,
+        hasBodyHtml: !!result.email.bodyHtml,
+        bodyLength: result.email.body?.length || 0,
+        bodyHtmlLength: result.email.bodyHtml?.length || 0,
+      })
+      
+      return { 
+        email: result.email,
+        rawResponse: result.rawResponse,
+      }
+    } else {
+      // For other providers (Aurinko), use the provider factory
+      const provider = getEmailProvider(connection.provider)
+      const email = await provider.getEmailById(
+        connection.aurinko_access_token,
+        emailId
+      )
+      
+      console.log('Email fetched successfully:', {
+        emailId: email.id,
+        subject: email.subject,
+        hasBody: !!email.body,
+        hasBodyHtml: !!email.bodyHtml,
+        bodyLength: email.body?.length || 0,
+        bodyHtmlLength: email.bodyHtml?.length || 0,
+      })
+      
+      return { email }
+    }
+  } catch (error) {
+    console.error('Error fetching full email details:', error)
+    return {
+      email: null,
+      error: error instanceof Error ? error.message : 'Failed to fetch email details'
     }
   }
 }
