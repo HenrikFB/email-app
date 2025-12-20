@@ -6,14 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -27,6 +19,33 @@ interface SourcedData {
   data: Record<string, unknown>
   reasoning: string
   confidence: number
+}
+
+// LangChain format for matched jobs
+interface LangChainJobData {
+  source_name?: string
+  source_url?: string | null
+  matched?: boolean
+  company?: string
+  position?: string
+  location?: string
+  confidence?: number
+  matchReasoning?: string
+  technologies?: string[]
+  deadline?: string | null
+  found?: boolean
+  sourceType?: string
+  iterations?: number
+  // Additional extracted fields
+  experience_level?: string
+  competencies?: string[]
+  company_domains?: string
+  work_type?: string
+  raw_content?: string
+  // Re-evaluation fields
+  reEvaluated?: boolean
+  rejectedAfterReEval?: boolean
+  rejectionReason?: string | null
 }
 
 interface SourceSelectionPayload {
@@ -167,6 +186,7 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
     })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const triggerSourceSearch = () => {
     if (!onSourceSearch || !result.data_by_source) {
       console.log('⚠️ [Result Card] Cannot trigger source search:', {
@@ -234,9 +254,24 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
     )
   }
 
-  // NEW: Separate matched and rejected sources
-  const matchedSources = result.data_by_source?.filter((s: any) => s.matched !== false) || []
-  const rejectedSources = result.data_by_source?.filter((s: any) => s.matched === false) || []
+  // Normalize data_by_source to always be an array
+  // Handles both old format { results: [...] } and new format [...]
+  const normalizedSources: (SourcedData | LangChainJobData)[] = (() => {
+    if (Array.isArray(result.data_by_source)) {
+      return result.data_by_source
+    }
+    if (result.data_by_source && typeof result.data_by_source === 'object') {
+      const obj = result.data_by_source as Record<string, unknown>
+      if (Array.isArray(obj.results)) {
+        return obj.results as (SourcedData | LangChainJobData)[]
+      }
+    }
+    return []
+  })()
+  
+  // Separate matched and rejected sources
+  const matchedSources = normalizedSources.filter((s) => (s as LangChainJobData).matched !== false) || []
+  const rejectedSources = normalizedSources.filter((s) => (s as LangChainJobData).matched === false) || []
 
   return (
     <Card className={cardClassName}>
@@ -372,7 +407,7 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                   )}
                 </div>
                 <p className="text-xs text-indigo-600 bg-indigo-100 px-2 py-1 rounded font-mono">
-                  Query: "{result.kb_search_results.query}"
+                  Query: &quot;{result.kb_search_results.query}&quot;
                 </p>
                 <div className="space-y-2">
                   {result.kb_search_results.results.slice(0, 5).map((kbResult, idx) => (
@@ -435,106 +470,198 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                 <CollapsibleTrigger asChild>
                   <Button variant="outline" className="w-full justify-between bg-green-50 hover:bg-green-100 border-green-300">
                     <span className="font-medium text-green-900">
-                      ✅ Matched Sources ({matchedSources.length})
+                      ✅ Matched Jobs ({matchedSources.length})
                     </span>
                     {showMatchedSources ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2 space-y-3">
-                  {matchedSources.map((sourceData, sourceIdx) => {
+                  {matchedSources.map((sourceData: SourcedData | LangChainJobData, sourceIdx) => {
                     const sourceKey = `${result.id}-matched-${sourceIdx}`
                     const isSelected = selectedSourceIds.includes(sourceKey)
-                    const sourceMatched = true
+                    
+                    // Handle both LangChain and legacy formats
+                    const isLangChain = 'company' in sourceData || 'position' in sourceData
+                    const langChainData = sourceData as LangChainJobData
+                    const legacyData = sourceData as SourcedData
+                    const company = isLangChain ? langChainData.company : ((legacyData.data?.company as string) || 'Unknown')
+                    const position = isLangChain ? langChainData.position : ((legacyData.data?.position as string) || 'Unknown Position')
+                    const location = isLangChain ? langChainData.location : (legacyData.data?.location as string | undefined)
+                    const technologies = isLangChain ? langChainData.technologies : (legacyData.data?.technologies as string[] | undefined)
+                    const deadline = isLangChain ? langChainData.deadline : (legacyData.data?.deadline as string | undefined)
+                    const confidence = sourceData.confidence || 0
+                    const reasoning = isLangChain ? langChainData.matchReasoning : legacyData.reasoning
+                    const sourceUrl = isLangChain ? langChainData.source_url : legacyData.source
+                    const found = langChainData.found
+                    const sourceType = langChainData.sourceType
+                    const iterations = langChainData.iterations
 
                     return (
                       <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
-                        {/* Source Header */}
-                        <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-green-200">
+                        {/* Job Header */}
+                        <div className="flex items-start justify-between mb-4 pb-3 border-b-2 border-green-200">
                           <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-xl">✅</span>
-                              <span className="text-xl">
-                                {sourceData.source === 'Email' ? '📧' : '🌐'}
-                              </span>
-                              <p className="text-base font-bold text-gray-900">
-                                {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
-                              </p>
-                              <Badge variant="default" className="ml-2 bg-green-600">
-                                Matched
-                              </Badge>
-                            </div>
-                            {sourceData.source !== 'Email' && (
-                              <div className="ml-8 mt-2 space-y-1">
-                                <a
-                                  href={sourceData.source}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-700 hover:text-blue-900 hover:underline flex items-center space-x-1 font-medium"
-                                >
-                                  <span className="truncate max-w-lg font-mono text-xs">{sourceData.source}</span>
-                                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
-                                </a>
-                                <p className="text-xs text-gray-500 italic">
-                                  ✓ Actual URL (resolved from SafeLinks redirect)
-                                </p>
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="text-2xl">💼</span>
+                              <div>
+                                <h4 className="text-lg font-bold text-gray-900">{position}</h4>
+                                <p className="text-sm text-gray-600">at <span className="font-semibold">{company}</span></p>
                               </div>
+                            </div>
+                            {sourceUrl && (
+                              <a
+                                href={sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline mt-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                View Job Posting
+                              </a>
                             )}
                           </div>
-                          <Badge 
-                            variant="outline" 
-                            className={`${getConfidenceColor(sourceData.confidence)} font-bold text-base px-3 py-1`}
-                          >
-                            {(sourceData.confidence * 100).toFixed(0)}% sure this matches
-                          </Badge>
-                          {onSourceSearch && (
-                            <div className="ml-4 flex items-center space-x-1">
-                              <Checkbox
-                                id={`${sourceKey}-select`}
-                                checked={isSelected}
-                                onCheckedChange={() => toggleSourceSelection(sourceKey)}
-                              />
-                              <label
-                                htmlFor={`${sourceKey}-select`}
-                                className="text-xs text-muted-foreground cursor-pointer"
-                              >
-                                Include
-                              </label>
+                          <div className="flex flex-col items-end gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={`${getConfidenceColor(confidence)} font-bold text-sm px-3 py-1`}
+                            >
+                              {(confidence * 100).toFixed(0)}% match
+                            </Badge>
+                            {found !== undefined && (
+                              <Badge variant={found ? "default" : "secondary"} className="text-xs">
+                                {found ? '🔍 Researched' : '📧 From Email'}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Extraction Fields Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                          {location && (
+                            <div className="bg-white rounded-md p-3 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📍 Location</p>
+                              <p className="text-sm font-medium text-gray-900">{location}</p>
+                            </div>
+                          )}
+                          
+                          {deadline && (
+                            <div className="bg-white rounded-md p-3 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📅 Deadline</p>
+                              <p className="text-sm font-medium text-gray-900">{deadline}</p>
+                            </div>
+                          )}
+                          
+                          {sourceType && (
+                            <div className="bg-white rounded-md p-3 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🌐 Source</p>
+                              <p className="text-sm font-medium text-gray-900 capitalize">{sourceType}</p>
+                            </div>
+                          )}
+                          
+                          {langChainData.experience_level && (
+                            <div className="bg-white rounded-md p-3 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📊 Experience</p>
+                              <p className="text-sm font-medium text-gray-900">{langChainData.experience_level}</p>
+                            </div>
+                          )}
+                          
+                          {langChainData.work_type && (
+                            <div className="bg-white rounded-md p-3 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🏢 Work Type</p>
+                              <p className="text-sm font-medium text-gray-900">{langChainData.work_type}</p>
+                            </div>
+                          )}
+                          
+                          {iterations !== undefined && iterations > 0 && (
+                            <div className="bg-white rounded-md p-3 shadow-sm">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🔄 Research Iterations</p>
+                              <p className="text-sm font-medium text-gray-900">{iterations}</p>
                             </div>
                           )}
                         </div>
-
-                        {/* Extracted Fields */}
-                        <div className="space-y-3">
-                          {Object.entries(sourceData.data).map(([key, value]) => (
-                            <div key={key} className="bg-white rounded-md shadow-sm p-3">
-                              <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
-                                {key.replace(/_/g, ' ')}:
-                              </p>
-                              <div className="text-sm text-gray-900">
-                                {Array.isArray(value) ? (
-                                  <ul className="list-disc list-inside space-y-1 pl-2">
-                                    {value.map((item, idx) => (
-                                      <li key={idx} className="text-gray-800">{String(item)}</li>
-                                    ))}
-                                  </ul>
-                                ) : typeof value === 'object' && value !== null ? (
-                                  <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
-                                    {JSON.stringify(value, null, 2)}
-                                  </pre>
-                                ) : (
-                                  <p className="text-gray-800">{String(value)}</p>
-                                )}
-                              </div>
+                        
+                        {/* Technologies */}
+                        {technologies && technologies.length > 0 && (
+                          <div className="bg-white rounded-md p-3 shadow-sm mb-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">🛠️ Technologies & Skills</p>
+                            <div className="flex flex-wrap gap-2">
+                              {technologies.map((tech: string, idx: number) => (
+                                <Badge key={idx} variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                                  {tech}
+                                </Badge>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        )}
+                        
+                        {/* Competencies */}
+                        {langChainData.competencies && langChainData.competencies.length > 0 && (
+                          <div className="bg-white rounded-md p-3 shadow-sm mb-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">🎯 Competencies</p>
+                            <div className="flex flex-wrap gap-2">
+                              {langChainData.competencies.map((comp: string, idx: number) => (
+                                <Badge key={idx} variant="outline" className="text-gray-700">
+                                  {comp}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Reasoning */}
-                        {sourceData.reasoning && (
-                          <div className="mt-3 pt-3 border-t border-green-200">
-                            <p className="text-xs text-gray-600 italic">
-                              💭 {sourceData.reasoning}
-                            </p>
+                        {/* Legacy format: show all data fields */}
+                        {!isLangChain && legacyData.data && (
+                          <div className="space-y-3 mb-4">
+                            {Object.entries(legacyData.data).map(([key, value]) => {
+                              // Skip fields we've already shown
+                              if (['company', 'position', 'location', 'technologies', 'deadline'].includes(key)) return null
+                              return (
+                                <div key={key} className="bg-white rounded-md shadow-sm p-3">
+                                  <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
+                                    {key.replace(/_/g, ' ')}:
+                                  </p>
+                                  <div className="text-sm text-gray-900">
+                                    {Array.isArray(value) ? (
+                                      <ul className="list-disc list-inside space-y-1 pl-2">
+                                        {value.map((item, idx) => (
+                                          <li key={idx} className="text-gray-800">{String(item)}</li>
+                                        ))}
+                                      </ul>
+                                    ) : typeof value === 'object' && value !== null ? (
+                                      <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
+                                        {JSON.stringify(value, null, 2)}
+                                      </pre>
+                                    ) : (
+                                      <p className="text-gray-800">{String(value)}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* AI Reasoning */}
+                        {reasoning && (
+                          <div className="bg-blue-50 rounded-md p-3 border-l-4 border-blue-400">
+                            <p className="text-xs font-semibold text-blue-800 mb-1">💭 Why this matches:</p>
+                            <p className="text-sm text-blue-900">{reasoning}</p>
+                          </div>
+                        )}
+                        
+                        {/* Selection checkbox */}
+                        {onSourceSearch && (
+                          <div className="mt-3 pt-3 border-t border-green-200 flex items-center space-x-2">
+                            <Checkbox
+                              id={`${sourceKey}-select`}
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSourceSelection(sourceKey)}
+                            />
+                            <label
+                              htmlFor={`${sourceKey}-select`}
+                              className="text-sm text-gray-600 cursor-pointer"
+                            >
+                              Include in knowledge base search
+                            </label>
                           </div>
                         )}
                       </div>
@@ -550,107 +677,86 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                 <CollapsibleTrigger asChild>
                   <Button variant="outline" className="w-full justify-between bg-red-50 hover:bg-red-100 border-red-300">
                     <span className="font-medium text-red-900">
-                      ❌ Rejected Sources ({rejectedSources.length})
+                      ❌ Rejected Jobs ({rejectedSources.length})
                     </span>
                     {showRejectedSources ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2 space-y-3">
-                  {rejectedSources.map((sourceData, sourceIdx) => {
+                  {rejectedSources.map((sourceData: SourcedData | LangChainJobData, sourceIdx) => {
                     const sourceKey = `${result.id}-rejected-${sourceIdx}`
-                    const isSelected = selectedSourceIds.includes(sourceKey)
-                    const sourceMatched = false
+                    
+                    // Handle both LangChain and legacy formats
+                    const isLangChain = 'company' in sourceData || 'position' in sourceData
+                    const langChainData = sourceData as LangChainJobData
+                    const legacyData = sourceData as SourcedData
+                    const company = isLangChain ? langChainData.company : ((legacyData.data?.company as string) || 'Unknown')
+                    const position = isLangChain ? langChainData.position : ((legacyData.data?.position as string) || 'Unknown Position')
+                    const location = isLangChain ? langChainData.location : (legacyData.data?.location as string | undefined)
+                    const technologies = isLangChain ? langChainData.technologies : (legacyData.data?.technologies as string[] | undefined)
+                    const reasoning = isLangChain ? langChainData.matchReasoning : legacyData.reasoning
 
                     return (
-                      <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-red-50 to-orange-50 border-red-300">
-                        {/* Source Header */}
-                        <div className="flex items-start justify-between mb-3 pb-3 border-b-2 border-red-200">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-xl">❌</span>
-                              <span className="text-xl">
-                                {sourceData.source === 'Email' ? '📧' : '🌐'}
-                              </span>
-                              <p className="text-base font-bold text-gray-900">
-                                {sourceData.source === 'Email' ? 'From Email' : 'From URL'}
-                              </p>
-                              <Badge variant="destructive" className="ml-2">
-                                Rejected
-                              </Badge>
+                      <div key={sourceKey} className={`border rounded-lg p-3 ${
+                        langChainData.rejectedAfterReEval 
+                          ? 'bg-orange-50 border-orange-300' 
+                          : 'bg-gray-50 border-gray-200'
+                      }`}>
+                        {/* Job Header */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{langChainData.rejectedAfterReEval ? '🔄' : '❌'}</span>
+                            <div>
+                              <p className="font-medium text-gray-700">{position}</p>
+                              <p className="text-xs text-gray-500">at {company}</p>
                             </div>
-                            {sourceData.source !== 'Email' && (
-                              <div className="ml-8 mt-2 space-y-1">
-                                <a
-                                  href={sourceData.source}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-700 hover:text-blue-900 hover:underline flex items-center space-x-1 font-medium"
-                                >
-                                  <span className="truncate max-w-lg font-mono text-xs">{sourceData.source}</span>
-                                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
-                                </a>
-                                <p className="text-xs text-gray-500 italic">
-                                  ✓ Actual URL (resolved from SafeLinks redirect)
-                                </p>
-                              </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge 
+                              variant="outline" 
+                              className={langChainData.rejectedAfterReEval 
+                                ? 'text-orange-600 border-orange-400 bg-orange-100' 
+                                : 'text-gray-500'
+                              }
+                            >
+                              {langChainData.rejectedAfterReEval ? 'Rejected after review' : 'Not a match'}
+                            </Badge>
+                            {langChainData.reEvaluated && (
+                              <span className="text-xs text-gray-400">✓ Full description reviewed</span>
                             )}
                           </div>
-                          <Badge 
-                            variant="outline" 
-                            className="bg-red-100 text-red-800 font-bold text-base px-3 py-1"
-                          >
-                            {(sourceData.confidence * 100).toFixed(0)}% sure this doesn't match
-                          </Badge>
-                          {onSourceSearch && (
-                            <div className="ml-4 flex items-center space-x-1">
-                              <Checkbox
-                                id={`${sourceKey}-select`}
-                                checked={isSelected}
-                                onCheckedChange={() => toggleSourceSelection(sourceKey)}
-                              />
-                              <label
-                                htmlFor={`${sourceKey}-select`}
-                                className="text-xs text-muted-foreground cursor-pointer"
-                              >
-                                Include
-                              </label>
-                            </div>
+                        </div>
+                        
+                        {/* Quick info */}
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-2">
+                          {location && <span>📍 {location}</span>}
+                          {langChainData.experience_level && (
+                            <span className={langChainData.rejectedAfterReEval ? 'text-orange-600 font-medium' : ''}>
+                              📊 {langChainData.experience_level}
+                            </span>
+                          )}
+                          {technologies && technologies.length > 0 && (
+                            <span>🛠️ {technologies.slice(0, 3).join(', ')}{technologies.length > 3 ? '...' : ''}</span>
                           )}
                         </div>
 
-                        {/* Extracted Fields */}
-                        <div className="space-y-3">
-                          {Object.entries(sourceData.data).map(([key, value]) => (
-                            <div key={key} className="bg-white rounded-md shadow-sm p-3">
-                              <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
-                                {key.replace(/_/g, ' ')}:
-                              </p>
-                              <div className="text-sm text-gray-900">
-                                {Array.isArray(value) ? (
-                                  <ul className="list-disc list-inside space-y-1 pl-2">
-                                    {value.map((item, idx) => (
-                                      <li key={idx} className="text-gray-800">{String(item)}</li>
-                                    ))}
-                                  </ul>
-                                ) : typeof value === 'object' && value !== null ? (
-                                  <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
-                                    {JSON.stringify(value, null, 2)}
-                                  </pre>
-                                ) : (
-                                  <p className="text-gray-800">{String(value)}</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Reasoning */}
-                        {sourceData.reasoning && (
-                          <div className="mt-3 pt-3 border-t border-red-200">
-                            <p className="text-xs text-gray-600 italic">
-                              💭 {sourceData.reasoning}
+                        {/* Re-evaluation Rejection Reason - Prominent */}
+                        {langChainData.rejectedAfterReEval && langChainData.rejectionReason && (
+                          <div className="bg-orange-100 rounded-md p-2 mb-2 border-l-4 border-orange-500">
+                            <p className="text-xs font-semibold text-orange-800 mb-1">
+                              🔍 Why this was rejected after reading full job description:
+                            </p>
+                            <p className="text-xs text-orange-900">
+                              {langChainData.rejectionReason}
                             </p>
                           </div>
+                        )}
+
+                        {/* General Rejection Reasoning */}
+                        {reasoning && !langChainData.rejectedAfterReEval && (
+                          <p className="text-xs text-red-600 mt-2 italic">
+                            💭 {reasoning}
+                          </p>
                         )}
                       </div>
                     )

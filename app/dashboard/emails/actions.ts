@@ -2,9 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { fetchEmails, getEmailById, type EmailFetchOptions, type Email, type MicrosoftEmail } from '@/lib/microsoft-graph/client'
-import { analyzeEmail } from '@/lib/email-analysis/orchestrator'
 import { revalidatePath } from 'next/cache'
 import { getEmailProvider } from '@/lib/email-provider/factory'
+import { runEmailWorkflow, type EmailInput, type AgentConfig } from '@/lib/langchain'
 
 export async function getEmailsFromConnection(
   connectionId: string,
@@ -64,199 +64,6 @@ export async function getEmailsFromConnection(
     return { 
       emails: [], 
       error: error instanceof Error ? error.message : 'Failed to fetch emails' 
-    }
-  }
-}
-
-export async function analyzeSelectedEmails(
-  emailIds: string[],
-  connectionId: string,
-  agentConfigId: string
-): Promise<{ success: boolean; analyzed: number; matched: number; failed: number; error?: string }> {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { success: false, analyzed: 0, matched: 0, failed: 0, error: 'Not authenticated' }
-  }
-
-  // Get the email connection
-  const { data: connection, error: connError } = await supabase
-    .from('email_connections')
-    .select('*')
-    .eq('id', connectionId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (connError || !connection) {
-    return { success: false, analyzed: 0, matched: 0, failed: 0, error: 'Email connection not found' }
-  }
-
-  // Get the agent configuration
-  const { data: agentConfig, error: configError } = await supabase
-    .from('agent_configurations')
-    .select('*')
-    .eq('id', agentConfigId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (configError || !agentConfig) {
-    return { success: false, analyzed: 0, matched: 0, failed: 0, error: 'Agent configuration not found' }
-  }
-
-  console.log(`\n📊 ========== BATCH ANALYSIS START ==========`)
-  console.log(`📧 Analyzing ${emailIds.length} emails`)
-  console.log(`🎯 Agent Config: ${agentConfig.email_address}`)
-  
-  let analyzedCount = 0
-  let matchedCount = 0
-  let failedCount = 0
-
-  try {
-    // Analyze each email immediately
-    for (let i = 0; i < emailIds.length; i++) {
-      const emailId = emailIds[i]
-      console.log(`\n📧 [${i + 1}/${emailIds.length}] Processing email ${emailId}...`)
-      
-      try {
-        // Fetch basic email info first
-        const email = await getEmailById(connection.aurinko_access_token, emailId)
-        
-        // Run analysis immediately
-        const result = await analyzeEmail({
-          emailId: emailId,
-          accessToken: connection.aurinko_access_token,
-          userId: user.id,
-          agentConfigId: agentConfigId,
-          agentConfig: {
-            match_criteria: agentConfig.match_criteria || '',
-            extraction_fields: agentConfig.extraction_fields || '',
-            follow_links: agentConfig.follow_links,
-            button_text_pattern: agentConfig.button_text_pattern || undefined,
-            user_intent: agentConfig.user_intent || undefined,
-            link_selection_guidance: agentConfig.link_selection_guidance || undefined,
-            max_links_to_scrape: agentConfig.max_links_to_scrape ?? 10,
-            content_retrieval_strategy: agentConfig.content_retrieval_strategy || 'scrape_only',
-            extraction_examples: agentConfig.extraction_examples || undefined,
-            analysis_feedback: agentConfig.analysis_feedback || undefined,
-            scraping_strategy: 'two-pass', // Use two-pass by default
-            // Automation fields
-            auto_search_kb_on_match: agentConfig.auto_search_kb_on_match ?? false,
-            auto_save_matches_to_kb_id: agentConfig.auto_save_matches_to_kb_id || undefined,
-            auto_save_confidence_threshold: agentConfig.auto_save_confidence_threshold ?? 0.8,
-            auto_search_query_template: agentConfig.auto_search_query_template || undefined,
-            // Multi-intent search fields
-            auto_search_mode: agentConfig.auto_search_mode || 'single',
-            auto_search_instructions: agentConfig.auto_search_instructions || undefined,
-            auto_search_split_fields: agentConfig.auto_search_split_fields || undefined,
-            auto_search_max_queries: agentConfig.auto_search_max_queries ?? 5,
-            // Deep Agent / Draft generation fields
-            draft_generation_enabled: agentConfig.draft_generation_enabled ?? false,
-            draft_instructions: agentConfig.draft_instructions || undefined,
-          },
-        })
-
-        // Store the analysis results (no longer using upsert - allow multiple runs)
-        await supabase
-          .from('analyzed_emails')
-          .insert({
-            user_id: user.id,
-            agent_configuration_id: agentConfigId,
-            email_connection_id: connectionId,
-            email_subject: email.subject,
-            email_from: email.from.address,
-            email_to: email.to?.map(t => t.address),
-            email_date: email.receivedDateTime,
-            email_message_id: email.internetMessageId || email.id,
-            graph_message_id: email.id,
-            email_snippet: email.snippet,
-            has_attachments: email.hasAttachments,
-            
-            // Analysis results
-            analysis_status: result.success ? 'completed' : 'failed',
-            matched: result.matched,
-            extracted_data: result.extractedData,
-            data_by_source: result.dataBySource || [],  // NEW: Store source-attributed data
-            reasoning: result.reasoning,
-            confidence: result.confidence,
-            scraped_urls: result.scrapedUrls,
-            scraped_content: result.scrapedContent || null,  // NEW: Store scraped markdown content
-            original_urls: result.originalUrls || null,  // NEW: Store SafeLinks → Actual URL mappings
-            all_links_found: result.allLinksFound,
-            email_html_body: result.emailHtmlBody,
-            error_message: result.error || null,
-            analyzed_at: new Date().toISOString(),
-            
-            // Auto KB search results
-            kb_search_results: result.autoKBSearchResults || null,
-            kb_search_performed_at: result.autoKBSearchResults ? new Date().toISOString() : null,
-            auto_saved_to_kb_id: result.autoSavedToKBId || null,
-          })
-
-        analyzedCount++
-        if (result.matched) {
-          matchedCount++
-        }
-        
-        console.log(`✅ [${i + 1}/${emailIds.length}] ${result.matched ? '✓ MATCHED' : '✗ No match'} - ${email.subject}`)
-      } catch (emailError) {
-        failedCount++
-        console.error(`❌ [${i + 1}/${emailIds.length}] Failed:`, emailError)
-        
-            // Try to store the failure
-            try {
-              const email = await getEmailById(connection.aurinko_access_token, emailId)
-              await supabase
-                .from('analyzed_emails')
-                .insert({
-                  user_id: user.id,
-                  agent_configuration_id: agentConfigId,
-                  email_connection_id: connectionId,
-                  email_subject: email.subject,
-                  email_from: email.from.address,
-                  email_to: email.to?.map(t => t.address),
-                  email_date: email.receivedDateTime,
-                  email_message_id: email.internetMessageId || email.id,
-                  graph_message_id: email.id,
-                  email_snippet: email.snippet,
-                  has_attachments: email.hasAttachments,
-                  analysis_status: 'failed',
-                  matched: false,
-                  data_by_source: [],
-                  error_message: emailError instanceof Error ? emailError.message : 'Unknown error',
-                  analyzed_at: new Date().toISOString(),
-                })
-            } catch (storeError) {
-              console.error('Failed to store error:', storeError)
-            }
-      }
-    }
-
-    console.log(`\n📊 ========== BATCH ANALYSIS COMPLETE ==========`)
-    console.log(`✅ Analyzed: ${analyzedCount}/${emailIds.length}`)
-    console.log(`✓  Matched: ${matchedCount}`)
-    console.log(`❌ Failed: ${failedCount}`)
-    console.log(`==============================================\n`)
-
-    revalidatePath('/dashboard/results')
-    
-    return { 
-      success: true, 
-      analyzed: analyzedCount,
-      matched: matchedCount,
-      failed: failedCount,
-    }
-  } catch (error) {
-    console.error('❌ Batch analysis error:', error)
-    return { 
-      success: false,
-      analyzed: analyzedCount,
-      matched: matchedCount,
-      failed: failedCount,
-      error: error instanceof Error ? error.message : 'Failed to analyze emails' 
     }
   }
 }
@@ -350,3 +157,265 @@ export async function getFullEmailDetails(
   }
 }
 
+// ============================================
+// LangChain Email Analysis
+// ============================================
+
+/**
+ * Analyze emails using the LangChain workflow with ReAct research agent
+ * 
+ * This workflow:
+ * 1. Cleans the email and extracts plain text
+ * 2. Uses AI to identify job listings and match against user criteria
+ * 3. Uses Tavily web search to find public job descriptions
+ * 4. Re-evaluates matches against full job descriptions
+ * 5. Stores results to the database
+ */
+export async function analyzeSelectedEmails(
+  emailIds: string[],
+  connectionId: string,
+  agentConfigId: string
+): Promise<{ success: boolean; analyzed: number; matched: number; failed: number; error?: string }> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, analyzed: 0, matched: 0, failed: 0, error: 'Not authenticated' }
+  }
+
+  // Get the email connection
+  const { data: connection, error: connError } = await supabase
+    .from('email_connections')
+    .select('*')
+    .eq('id', connectionId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (connError || !connection) {
+    return { success: false, analyzed: 0, matched: 0, failed: 0, error: 'Email connection not found' }
+  }
+
+  // Get the agent configuration
+  const { data: agentConfig, error: configError } = await supabase
+    .from('agent_configurations')
+    .select('*')
+    .eq('id', agentConfigId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (configError || !agentConfig) {
+    return { success: false, analyzed: 0, matched: 0, failed: 0, error: 'Agent configuration not found' }
+  }
+
+  // Get assigned knowledge bases (for Phase 2)
+  const { data: kbAssignments } = await supabase
+    .from('agent_kb_assignments')
+    .select('knowledge_base_id')
+    .eq('agent_configuration_id', agentConfigId)
+
+  const knowledgeBaseIds = (kbAssignments || []).map(a => a.knowledge_base_id)
+
+  console.log(`\n📊 ========== LANGCHAIN ANALYSIS START ==========`)
+  console.log(`📧 Analyzing ${emailIds.length} emails`)
+  console.log(`🎯 Agent Config: ${agentConfig.name || agentConfig.email_address}`)
+  console.log(`📚 KBs assigned: ${knowledgeBaseIds.length}`)
+  
+  let analyzedCount = 0
+  let matchedCount = 0
+  let failedCount = 0
+
+  try {
+    // Build LangChain config from agent_configurations
+    const langchainConfig: AgentConfig = {
+      id: agentConfig.id,
+      matchCriteria: agentConfig.match_criteria || '',
+      extractionFields: agentConfig.extraction_fields || '',
+      userIntent: agentConfig.user_intent || undefined,
+      draftGenerationEnabled: agentConfig.draft_generation_enabled || false,
+      draftInstructions: agentConfig.draft_instructions || undefined,
+      knowledgeBaseIds,
+    }
+
+    // Process each email
+    for (let i = 0; i < emailIds.length; i++) {
+      const emailId = emailIds[i]
+      console.log(`\n📧 [${i + 1}/${emailIds.length}] Processing email ${emailId}...`)
+      
+      try {
+        // Fetch the full email
+        const email = await getEmailById(connection.aurinko_access_token, emailId)
+        
+        // Build EmailInput for LangChain
+        const emailInput: EmailInput = {
+          id: email.id,
+          subject: email.subject || '(No subject)',
+          from: email.from?.address || 'unknown@email.com',
+          to: email.to?.map(t => t.address) || [],
+          date: email.receivedDateTime || new Date().toISOString(),
+          htmlBody: email.bodyHtml || email.body || '',
+          snippet: email.snippet,
+        }
+
+        // Run the LangChain workflow
+        const result = await runEmailWorkflow({
+          email: emailInput,
+          config: langchainConfig,
+          userId: user.id,
+        })
+
+        // Build extracted_data from matched jobs
+        const matchedJobs = result.jobs.filter(j => j.matched)
+        const extractedData = matchedJobs.length > 0 ? {
+          jobs: matchedJobs.map(job => ({
+            company: job.company,
+            position: job.position,
+            location: job.location,
+            technologies: job.technologies,
+            confidence: job.confidence,
+            ...job.extractedData,
+          })),
+          totalJobs: result.jobs.length,
+          matchedJobs: matchedJobs.length,
+        } : null
+
+        // Build research data as array (UI expects array for .filter())
+        // Include ALL jobs that were researched
+        const researchedJobIds = result.researchResults.map(r => r.jobId)
+        const jobsToInclude = result.jobs.filter(job => 
+          job.matched ||
+          researchedJobIds.includes(job.id) ||
+          (job.extractedData as Record<string, unknown>)?._reEvaluated
+        )
+        
+        const researchData = jobsToInclude.map(job => {
+          const research = result.researchResults.find(r => r.jobId === job.id)
+          const extractedData = (job.extractedData || {}) as Record<string, unknown>
+          const wasReEvaluated = extractedData._reEvaluated === true
+          const wasRejectedAfterReEval = wasReEvaluated && !job.matched && extractedData._changedReason
+          
+          return {
+            source_name: job.company,
+            source_url: research?.primarySource?.url || job.originalUrl || null,
+            matched: job.matched,
+            company: job.company,
+            position: job.position,
+            location: job.location,
+            confidence: job.confidence,
+            matchReasoning: job.matchReasoning,
+            technologies: research?.technologies || job.technologies,
+            deadline: research?.deadline || (extractedData.deadline as string) || null,
+            found: research?.found ?? false,
+            sourceType: research?.primarySource?.sourceType || 'email',
+            iterations: research?.iterations || 0,
+            experience_level: extractedData.experience_level || extractedData.experienceLevel || null,
+            competencies: extractedData.competencies || null,
+            company_domains: extractedData.company_domains || extractedData.companyDomains || null,
+            work_type: extractedData.work_type || extractedData.workType || null,
+            raw_content: research?.jobDescription?.substring(0, 1000) || null,
+            reEvaluated: wasReEvaluated,
+            rejectedAfterReEval: wasRejectedAfterReEval,
+            rejectionReason: wasRejectedAfterReEval ? (extractedData._changedReason as string) : null,
+          }
+        })
+
+        // Store the analysis results
+        await supabase
+          .from('analyzed_emails')
+          .insert({
+            user_id: user.id,
+            agent_configuration_id: agentConfigId,
+            email_connection_id: connectionId,
+            email_subject: email.subject,
+            email_from: email.from?.address || 'unknown',
+            email_to: email.to?.map(t => t.address),
+            email_date: email.receivedDateTime,
+            email_message_id: email.internetMessageId || email.id,
+            graph_message_id: email.id,
+            email_snippet: email.snippet,
+            has_attachments: email.hasAttachments,
+            email_html_body: email.bodyHtml || email.body,
+            
+            // Analysis results
+            analysis_status: result.success ? 'completed' : 'failed',
+            matched: result.hasMatches,
+            extracted_data: extractedData,
+            data_by_source: researchData,
+            reasoning: matchedJobs.length > 0
+              ? matchedJobs.map(j => `${j.position} at ${j.company}: ${j.matchReasoning}`).join('\n\n')
+              : 'No matching jobs found',
+            confidence: matchedJobs.length > 0 
+              ? matchedJobs.reduce((sum, j) => sum + j.confidence, 0) / matchedJobs.length 
+              : 0,
+            error_message: result.errors.length > 0 ? result.errors.join('; ') : null,
+            analyzed_at: new Date().toISOString(),
+          })
+
+        analyzedCount++
+        if (result.hasMatches) {
+          matchedCount++
+        }
+        
+        console.log(`✅ [${i + 1}/${emailIds.length}] ${result.hasMatches ? '✓ MATCHED' : '✗ No match'} - ${email.subject}`)
+        console.log(`   Jobs found: ${result.jobs.length}, Matched: ${matchedJobs.length}`)
+        
+      } catch (emailError) {
+        failedCount++
+        console.error(`❌ [${i + 1}/${emailIds.length}] Failed:`, emailError)
+        
+        // Try to store the failure
+        try {
+          const email = await getEmailById(connection.aurinko_access_token, emailId)
+          await supabase
+            .from('analyzed_emails')
+            .insert({
+              user_id: user.id,
+              agent_configuration_id: agentConfigId,
+              email_connection_id: connectionId,
+              email_subject: email.subject,
+              email_from: email.from?.address || 'unknown',
+              email_to: email.to?.map(t => t.address),
+              email_date: email.receivedDateTime,
+              email_message_id: email.internetMessageId || email.id,
+              graph_message_id: email.id,
+              email_snippet: email.snippet,
+              has_attachments: email.hasAttachments,
+              analysis_status: 'failed',
+              matched: false,
+              data_by_source: [],
+              error_message: emailError instanceof Error ? emailError.message : 'Unknown error',
+              analyzed_at: new Date().toISOString(),
+            })
+        } catch (storeError) {
+          console.error('Failed to store error:', storeError)
+        }
+      }
+    }
+
+    console.log(`\n📊 ========== ANALYSIS COMPLETE ==========`)
+    console.log(`✅ Analyzed: ${analyzedCount}/${emailIds.length}`)
+    console.log(`✓  Matched: ${matchedCount}`)
+    console.log(`❌ Failed: ${failedCount}`)
+    console.log(`==========================================\n`)
+
+    revalidatePath('/dashboard/results')
+    
+    return { 
+      success: true, 
+      analyzed: analyzedCount,
+      matched: matchedCount,
+      failed: failedCount,
+    }
+  } catch (error) {
+    console.error('❌ Analysis error:', error)
+    return { 
+      success: false,
+      analyzed: analyzedCount,
+      matched: matchedCount,
+      failed: failedCount,
+      error: error instanceof Error ? error.message : 'Failed to analyze emails' 
+    }
+  }
+}

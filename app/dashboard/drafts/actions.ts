@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { GeneratedDraftRow } from '@/lib/deep-agent/types'
 
 /**
  * Draft type for client-side use

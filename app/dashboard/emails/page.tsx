@@ -124,6 +124,7 @@ export default function EmailBrowserPage() {
         })
       }, 500)
 
+      // Run LangChain analysis
       const result = await analyzeSelectedEmails(selectedEmails, selectedConnection, selectedConfig)
       
       clearInterval(progressInterval)
@@ -271,26 +272,36 @@ export default function EmailBrowserPage() {
               {selectedEmails.length} email(s) selected
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex gap-4">
-            <div className="flex-1">
-              <Label htmlFor="agentConfig">Agent Configuration</Label>
-              <Select value={selectedConfig} onValueChange={setSelectedConfig}>
-                <SelectTrigger id="agentConfig">
-                  <SelectValue placeholder="Select configuration" />
-                </SelectTrigger>
-                <SelectContent>
-                  {agentConfigs.map((config) => (
-                    <SelectItem key={config.id} value={config.id}>
-                      {config.name || config.email_address}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <CardContent className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Label htmlFor="agentConfig">Agent Configuration</Label>
+                <Select value={selectedConfig} onValueChange={setSelectedConfig}>
+                  <SelectTrigger id="agentConfig">
+                    <SelectValue placeholder="Select configuration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agentConfigs.map((config) => (
+                      <SelectItem key={config.id} value={config.id}>
+                        {config.name || config.email_address}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button onClick={handleAnalyzeSelected} disabled={analyzing || !selectedConfig}>
+                  {analyzing ? 'Analyzing...' : 'Analyze Selected'}
+                </Button>
+              </div>
             </div>
-            <div className="flex items-end">
-              <Button onClick={handleAnalyzeSelected} disabled={analyzing || !selectedConfig}>
-                {analyzing ? 'Analyzing...' : 'Analyze Selected'}
-              </Button>
+            
+            {/* Analysis info */}
+            <div className="rounded-md bg-indigo-50 p-3 border border-indigo-200">
+              <p className="text-sm text-indigo-800">
+                <span className="font-medium">✨ LangChain ReAct Agent:</span>{' '}
+                Uses iterative web research with Tavily to find public job descriptions
+              </p>
             </div>
           </CardContent>
         </Card>
