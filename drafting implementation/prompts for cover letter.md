@@ -1,5 +1,26 @@
 I want to make a quick simple drafting prompts for my cover letters.
 
+_____________
+General rules that is always included
+_________________
+1.Hi Company name,
+
+I would also like to propose an independent 4-week pilot project – without requiring any resources from your side(internship during unemployment).
+
+Projects I can complete independently:
+
+
+2. bullets point after "Projects I can complete independently":
+Software development with X,y,z (SEE THE JOBDESCRIPTION)
+
+3.Always include this:
+Designing or maintaining scalable software systems:
+-Make features generic
+-Interfaces, strategy, adapter, and factory pattern
+-Dont repeat yourself(DRY)
+Automate designs/project structure, DevOps, and CI/CD with code editor AI rules
+
+
 
 _____
 Rules for if frontend or design/UX is included or directly mention collaboration with UX or directly write Figma
