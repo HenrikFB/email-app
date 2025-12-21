@@ -35,7 +35,7 @@ export default function EmailBrowserPage() {
 
   // Filters
   const [fromFilter, setFromFilter] = useState('')
-  const [dateRange, setDateRange] = useState('30') // days
+  const [dateRange, setDateRange] = useState('7') // days - default to 7 for better API compatibility
   const [hasAttachment, setHasAttachment] = useState<boolean | undefined>(undefined)
 
   // Load connections and configs on mount
@@ -76,7 +76,7 @@ export default function EmailBrowserPage() {
       const daysAgo = parseInt(dateRange)
       const afterDate = new Date()
       afterDate.setDate(afterDate.getDate() - daysAgo)
-      const afterDateStr = `${afterDate.getFullYear()}/${String(afterDate.getMonth() + 1).padStart(2, '0')}/${String(afterDate.getDate()).padStart(2, '0')}`
+      const afterDateStr = `${afterDate.getFullYear()}-${String(afterDate.getMonth() + 1).padStart(2, '0')}-${String(afterDate.getDate()).padStart(2, '0')}`
 
       const result = await getEmailsFromConnection(selectedConnection, {
         from: fromFilter || undefined,

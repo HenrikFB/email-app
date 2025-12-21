@@ -8,9 +8,13 @@
  * This catches cases where:
  * - Email says ".NET developer" (matches)
  * - Full description says "5+ years required" (doesn't match user's <5 years criteria)
+ * 
+ * Uses chain-of-thought reasoning for accurate verification.
  */
 
 import { ChatOpenAI } from '@langchain/openai'
+import { JOB_SEARCH_CONFIG } from '../configs'
+import { debugLog } from '../utils/debug-logger'
 import type { EmailWorkflowState, JobListing, JobResearchResult } from '../types'
 
 // Use same model as analysis for consistency
@@ -22,20 +26,79 @@ interface ReEvaluationResult {
   newMatch: boolean
   newConfidence: number
   newReasoning: string
-  changedReason?: string // Why the decision changed
+  changedReason?: string
   extractedFields: Record<string, unknown>
 }
 
 /**
- * Build the re-evaluation prompt
+ * Build the re-evaluation prompt - INCLUSIVE approach
+ * User prefers false positives over missing opportunities
  */
 function buildReEvaluationPrompt(config: {
   matchCriteria: string
   extractionFields: string
   userIntent?: string
 }): string {
-  return `You are an expert job matcher. You previously matched jobs based on email snippets.
-Now you have the FULL job description and must RE-EVALUATE if each job truly matches the user's criteria.
+  return `You are an expert job analyst performing a VERIFICATION step.
+
+## YOUR MISSION
+You previously matched jobs based on brief email snippets. Now you have the FULL job description.
+Your job is to VERIFY and ENRICH the match information.
+
+## CRITICAL: BE INCLUSIVE, NOT STRICT
+
+**The user EXPLICITLY wants to see ALL potentially relevant IT/software jobs.**
+They prefer FALSE POSITIVES over missing opportunities.
+They can filter manually - your job is to NOT miss good opportunities.
+
+### ONLY REJECT if the JOB ROLE requires HARD DISQUALIFIERS:
+1. PLC programming with Siemens S7/TIA Portal (industrial automation controllers)
+2. SCADA systems (industrial control software)
+3. Embedded firmware/RTOS with microcontrollers (STM32, Arduino, bare-metal)
+4. Hardware/electronic/PCB design
+5. Mechanical/mechatronic engineering
+
+### ⚠️ COMPANY DOMAIN DOES NOT MATTER!
+A software developer job at ABB, Siemens, Grundfos, Vestas, or ANY industrial company is VALID.
+What matters is the JOB ROLE, not what the company manufactures.
+
+✅ "Software Developer at ABB using C#, .NET, SQL" → INCLUDE (it's a software role!)
+❌ "PLC Programmer at ABB using Siemens S7, TIA Portal" → REJECT (it's PLC programming)
+
+### DO NOT REJECT for:
+- The company's industry (manufacturing, utilities, healthcare, etc.)
+- Experience level (flag it, but don't reject)
+- Senior roles (user wants to see them and decide)
+- Technologies user doesn't know yet (they can learn)
+- Uncertainty about the role (include with lower confidence)
+
+## CHAIN-OF-THOUGHT VERIFICATION
+
+### Step 1: IS THIS AN IT/SOFTWARE JOB?
+<thinking>
+- Does this involve coding, software, IT, automation, data, or development?
+- Types that ARE valid: Software, DevOps, RPA, BI, Cloud, Data, Web, Mobile, IT-udvikler
+- Types that are NOT valid: PLC/SCADA, Hardware, Embedded firmware, Mechanical
+</thinking>
+
+### Step 2: EXPERIENCE CHECK (Flag, don't reject)
+<thinking>
+- What experience level is mentioned?
+- Flag if senior (5+ years) but STILL INCLUDE
+- User said they're flexible on experience
+</thinking>
+
+### Step 3: TECHNOLOGY ENRICHMENT
+<thinking>
+- What technologies are required?
+- What are nice-to-have?
+- Extract for user reference
+</thinking>
+
+### Step 4: FINAL DECISION
+- CONFIRMED MATCH: Definitely relevant IT/software job
+- MATCH WITH FLAG: Relevant but has concerns (senior, unfamiliar tech) - STILL INCLUDE
+- REJECTED: ONLY if hard disqualifiers found (PLC/SCADA/embedded/hardware)
 
 ## USER'S MATCH CRITERIA
 ${config.matchCriteria}
@@ -43,35 +106,38 @@ ${config.matchCriteria}
 ## USER'S INTENT
 ${config.userIntent || 'Find relevant job opportunities'}
 
-## EXTRACTION FIELDS TO LOOK FOR
+## EXTRACTION FIELDS
 ${config.extractionFields}
 
-## YOUR TASK
-For each job, carefully read the FULL job description and:
+## DANISH TERMS
+- "erfaring" = experience, "års erfaring" = years of experience
+- "krav" = requirements, "ønsket" = desired/nice-to-have
+- "IT-udvikler" = IT developer, "softwareudvikler" = software developer
+- "automatisering" = automation, "RPA" = robotic process automation
 
-1. **Check Experience Requirements**: 
-   - If user wants "<5 years" but job requires "5+ years", "senior", "lead" → REJECT
-   - If user wants "senior" but job is for "junior" → REJECT
+## OUTPUT FORMAT
+Respond with a JSON object:
+\`\`\`json
+{
+  "stillMatches": true/false,
+  "confidence": 0.0-1.0,
+  "reasoning": "Brief explanation of your decision",
+  "changedReason": "ONLY if rejecting - what hard disqualifier was found?",
+  "extractedFields": {
+    "deadline": "extracted deadline or null",
+    "experience_level": "junior/mid/senior/lead/not specified",
+    "experience_years": "X-Y years or X+ years or null",
+    "technologies": ["required", "technologies"],
+    "nice_to_have_technologies": ["optional", "technologies"],
+    "competencies": ["soft", "skills"],
+    "work_type": "remote/hybrid/onsite/not specified",
+    "location": "extracted location",
+    "salary": "if mentioned or null"
+  }
+}
+\`\`\`
 
-2. **Check Technology Match**:
-   - Does the job require technologies the user knows?
-   - Are there deal-breaker requirements (e.g., PLC/SCADA for a software dev)?
-
-3. **Check Other Criteria**:
-   - Location compatibility
-   - Work type (remote/hybrid/onsite)
-   - Any other user-specified requirements
-
-4. **Extract Fields**:
-   - deadline, technologies, competencies, experience_level, location, work_type
-   - Any other fields from the extraction fields list
-
-## IMPORTANT
-- Be STRICT now that you have full information
-- If the full description reveals disqualifying criteria, CHANGE the match to false
-- Provide clear reasoning about what changed and why
-
-Respond with a JSON object for each job.`
+REMEMBER: When in doubt, INCLUDE the job. User can filter manually.`
 }
 
 /**
@@ -92,8 +158,8 @@ async function reEvaluateSingleJob(
       jobId: job.id,
       originalMatch: job.matched,
       newMatch: job.matched,
-      newConfidence: job.confidence,
-      newReasoning: job.matchReasoning + ' (No full description available for re-evaluation)',
+      newConfidence: job.confidence * 0.9, // Slightly reduce confidence without verification
+      newReasoning: job.matchReasoning + ' [Note: Could not verify - no full description available]',
       extractedFields: job.extractedData || {},
     }
   }
@@ -106,41 +172,42 @@ async function reEvaluateSingleJob(
   const systemPrompt = buildReEvaluationPrompt(config)
 
   // Truncate job description if too long
-  const maxDescLength = 8000
+  const maxDescLength = 12000
   const jobDescription = research.jobDescription.length > maxDescLength
     ? research.jobDescription.substring(0, maxDescLength) + '\n... [truncated]'
     : research.jobDescription
 
-  const userPrompt = `
-## JOB TO RE-EVALUATE
+  const userPrompt = `## JOB TO RE-VERIFY
 
-**Company**: ${job.company}
-**Position**: ${job.position}
-**Location**: ${job.location || 'Not specified'}
-**Original Match**: ${job.matched ? 'Yes' : 'No'} (${(job.confidence * 100).toFixed(0)}%)
-**Original Reasoning**: ${job.matchReasoning}
+### Original Match Information
+- **Company**: ${job.company}
+- **Position**: ${job.position}
+- **Location**: ${job.location || 'Not specified'}
+- **Original Match**: ${job.matched ? 'Yes' : 'No'} (${(job.confidence * 100).toFixed(0)}% confidence)
+- **Original Reasoning**: ${job.matchReasoning}
+- **Technologies from Email**: ${job.technologies.join(', ') || 'None specified'}
 
-## FULL JOB DESCRIPTION (from ${research.primarySource?.sourceType || 'web search'}):
+### Source Information
+- **Source Type**: ${research.primarySource?.sourceType || 'Unknown'}
+- **Source URL**: ${research.primarySource?.url || 'N/A'}
+
+---
+
+## FULL JOB DESCRIPTION
+
 ${jobDescription}
 
 ---
 
-Re-evaluate this job. Respond with ONLY a JSON object:
-{
-  "stillMatches": true/false,
-  "confidence": 0.0-1.0,
-  "reasoning": "Explanation of why it matches or not based on the FULL description",
-  "changedReason": "If the decision changed, explain what new information caused this" or null,
-  "extractedFields": {
-    "deadline": "extracted deadline or null",
-    "experience_level": "junior/mid/senior/not specified",
-    "technologies": ["list", "of", "technologies"],
-    "competencies": ["list", "of", "competencies"],
-    "work_type": "remote/hybrid/onsite/not specified",
-    "location": "extracted location",
-    "salary": "if mentioned or null"
-  }
-}`
+Now perform your chain-of-thought verification.
+
+First, go through each verification step in your <thinking>:
+1. EXPERIENCE VERIFICATION - Check years and level required
+2. TECHNOLOGY VERIFICATION - Check required vs nice-to-have
+3. JOB TYPE VERIFICATION - Confirm it's software development
+4. OTHER CRITERIA - Location, work type, etc.
+
+Then provide your final decision as JSON.`
 
   try {
     const response = await model.invoke([
@@ -153,8 +220,9 @@ Re-evaluate this job. Respond with ONLY a JSON object:
       ? response.content 
       : JSON.stringify(response.content)
 
-    // Extract JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    // Extract JSON from response (might be wrapped in markdown code block)
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/)
+    
     if (!jsonMatch) {
       console.warn(`   ⚠️ Could not parse re-evaluation response for ${job.company}`)
       return {
@@ -162,12 +230,13 @@ Re-evaluate this job. Respond with ONLY a JSON object:
         originalMatch: job.matched,
         newMatch: job.matched,
         newConfidence: job.confidence,
-        newReasoning: job.matchReasoning,
+        newReasoning: job.matchReasoning + ' [Re-evaluation parse error]',
         extractedFields: job.extractedData || {},
       }
     }
 
-    const parsed = JSON.parse(jsonMatch[0])
+    const jsonStr = jsonMatch[1] || jsonMatch[0]
+    const parsed = JSON.parse(jsonStr)
 
     return {
       jobId: job.id,
@@ -201,7 +270,10 @@ Re-evaluate this job. Respond with ONLY a JSON object:
 export async function reEvaluateNode(
   state: EmailWorkflowState
 ): Promise<Partial<EmailWorkflowState>> {
-  console.log('\n🔄 [Re-Evaluate] Starting re-evaluation of matched jobs...')
+  console.log('\n' + '═'.repeat(70))
+  console.log('🔄 RE-EVALUATION NODE - STRICT VERIFICATION')
+  console.log('═'.repeat(70))
+  
   const startTime = Date.now()
 
   try {
@@ -212,42 +284,68 @@ export async function reEvaluateNode(
       return {}
     }
 
-    console.log(`   Re-evaluating ${matchedJobs.length} job(s) against full descriptions...`)
+    console.log(`📋 Re-evaluating ${matchedJobs.length} job(s) with full descriptions...`)
+    console.log('─'.repeat(70))
+
+    // Use config from state or fallback to hardcoded
+    const evalConfig = {
+      matchCriteria: state.config.matchCriteria || JOB_SEARCH_CONFIG.matchCriteria,
+      extractionFields: state.config.extractionFields || JOB_SEARCH_CONFIG.extractionFields,
+      userIntent: state.config.userIntent || JOB_SEARCH_CONFIG.userIntent,
+    }
 
     const results: ReEvaluationResult[] = []
-    let changedCount = 0
+    let confirmedCount = 0
     let rejectedCount = 0
+    let downgradedCount = 0
 
     // Re-evaluate each matched job
     for (const job of matchedJobs) {
       const research = state.researchResults.find(r => r.jobId === job.id)
       
-      console.log(`\n   📋 Re-evaluating: ${job.position} at ${job.company}`)
-      console.log(`      Original: ${job.matched ? '✅' : '❌'} (${(job.confidence * 100).toFixed(0)}%)`)
-      console.log(`      Has full description: ${research?.found ? 'Yes' : 'No'}`)
+      console.log(`\n📋 Verifying: ${job.position} at ${job.company}`)
+      console.log(`   Original: ✅ Match (${(job.confidence * 100).toFixed(0)}%)`)
+      console.log(`   Full description: ${research?.found ? 'Available (' + (research.jobDescription?.length || 0) + ' chars)' : 'Not available'}`)
 
-      const result = await reEvaluateSingleJob(job, research, {
-        matchCriteria: state.config.matchCriteria,
-        extractionFields: state.config.extractionFields,
-        userIntent: state.config.userIntent,
-      })
-
+      const result = await reEvaluateSingleJob(job, research, evalConfig)
       results.push(result)
 
-      // Log changes
-      if (result.originalMatch !== result.newMatch) {
-        changedCount++
-        if (!result.newMatch) {
-          rejectedCount++
-          console.log(`      ❌ REJECTED after re-evaluation`)
-          console.log(`      Reason: ${result.changedReason || result.newReasoning}`)
-        } else {
-          console.log(`      ✅ CONFIRMED after re-evaluation`)
-        }
+      // Log the result with details
+      if (!result.newMatch && result.originalMatch) {
+        rejectedCount++
+        console.log(`   ❌ REJECTED after verification`)
+        console.log(`   📝 Reason: ${result.changedReason || result.newReasoning}`)
+      } else if (result.newMatch && result.newConfidence < job.confidence) {
+        downgradedCount++
+        console.log(`   ⚠️ DOWNGRADED to ${(result.newConfidence * 100).toFixed(0)}%`)
+        console.log(`   📝 Reason: ${result.newReasoning}`)
       } else {
-        console.log(`      → No change (${result.newMatch ? '✅' : '❌'})`)
+        confirmedCount++
+        console.log(`   ✅ CONFIRMED (${(result.newConfidence * 100).toFixed(0)}%)`)
       }
-      console.log(`      New confidence: ${(result.newConfidence * 100).toFixed(0)}%`)
+
+      // Log extracted fields
+      if (result.extractedFields && Object.keys(result.extractedFields).length > 0) {
+        const ef = result.extractedFields
+        if (ef.experience_level || ef.experience_years) {
+          console.log(`   📊 Experience: ${ef.experience_level || ''} ${ef.experience_years || ''}`)
+        }
+        if (ef.technologies && Array.isArray(ef.technologies) && ef.technologies.length > 0) {
+          console.log(`   💻 Technologies: ${(ef.technologies as string[]).slice(0, 5).join(', ')}...`)
+        }
+        if (ef.deadline) {
+          console.log(`   📅 Deadline: ${ef.deadline}`)
+        }
+      }
+      
+      // Debug log this re-evaluation
+      await debugLog.logReEvaluation(
+        job.company,
+        result.originalMatch,
+        result.newMatch,
+        research?.jobDescription,
+        result.newReasoning
+      )
     }
 
     // Update jobs with re-evaluation results
@@ -264,6 +362,7 @@ export async function reEvaluateNode(
           ...job.extractedData,
           ...reEvalResult.extractedFields,
           _reEvaluated: true,
+          _originalMatch: reEvalResult.originalMatch,
           _changedReason: reEvalResult.changedReason,
         },
       }
@@ -273,10 +372,16 @@ export async function reEvaluateNode(
     const hasMatches = updatedJobs.some(j => j.matched)
 
     const duration = Date.now() - startTime
-    console.log(`\n✅ [Re-Evaluate] Completed in ${(duration / 1000).toFixed(1)}s`)
-    console.log(`   Changed: ${changedCount}/${matchedJobs.length}`)
-    console.log(`   Rejected: ${rejectedCount}`)
-    console.log(`   Still matching: ${updatedJobs.filter(j => j.matched).length}`)
+    
+    console.log('\n' + '─'.repeat(70))
+    console.log('📊 RE-EVALUATION SUMMARY')
+    console.log('─'.repeat(70))
+    console.log(`   ⏱️ Duration: ${(duration / 1000).toFixed(1)}s`)
+    console.log(`   ✅ Confirmed: ${confirmedCount}`)
+    console.log(`   ⚠️ Downgraded: ${downgradedCount}`)
+    console.log(`   ❌ Rejected: ${rejectedCount}`)
+    console.log(`   📋 Final matches: ${updatedJobs.filter(j => j.matched).length}/${matchedJobs.length}`)
+    console.log('═'.repeat(70) + '\n')
 
     return {
       jobs: updatedJobs,
@@ -290,5 +395,5 @@ export async function reEvaluateNode(
   }
 }
 
-export { reEvaluateNode as default }
-
+export { buildReEvaluationPrompt }
+export default reEvaluateNode

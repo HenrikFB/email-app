@@ -350,12 +350,12 @@ export async function fetchEmails(
   
   // Build filter query
   const filter = buildFilterQuery(options)
+  
+  // Microsoft Graph has issues combining $filter + $orderby on some filters
+  // Only use $orderby when there's no filter - we'll sort client-side otherwise
   if (filter) {
     params.append('$filter', filter)
-    // When using filters, don't use $orderby (can cause InefficientFilter errors)
-    // We'll sort client-side instead
   } else {
-    // Only use $orderby when no filters (safer)
     params.append('$orderby', 'receivedDateTime desc')
   }
 

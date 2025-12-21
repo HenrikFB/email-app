@@ -6,6 +6,7 @@
  */
 
 import { researchJob, researchJobsBatch } from '../agents/research-agent'
+import { debugLog } from '../utils/debug-logger'
 import type { EmailWorkflowState, JobResearchResult } from '../types'
 
 // ============================================
@@ -62,6 +63,42 @@ export async function researchNode(
     console.log(`\n✅ [Research Node] Completed in ${(processingTime / 1000).toFixed(1)}s`)
     console.log(`   Success rate: ${successCount}/${matchedJobs.length} (${Math.round(successCount / matchedJobs.length * 100)}%)`)
     console.log(`   Average iterations: ${avgIterations.toFixed(1)}`)
+
+    // Debug log each research result
+    for (const result of researchResults) {
+      await debugLog.logResearchResult(
+        result.company,
+        result.position,
+        {
+          found: result.found,
+          jobDescriptionLength: result.jobDescription?.length || 0,
+          jobDescriptionPreview: result.jobDescription?.substring(0, 500) || '[NO CONTENT]',
+          primarySource: result.primarySource?.url,
+          sourceType: result.primarySource?.sourceType,
+          technologies: result.technologies,
+          deadline: result.deadline,
+          iterations: result.iterations,
+          reasoning: result.reasoning,
+        }
+      )
+    }
+    
+    // Log full research step
+    await debugLog.logStep('research', 
+      { matchedJobsCount: matchedJobs.length }, 
+      { 
+        results: researchResults.map(r => ({
+          company: r.company,
+          position: r.position,
+          found: r.found,
+          jobDescriptionLength: r.jobDescription?.length || 0,
+          primarySource: r.primarySource?.url,
+        })),
+        successCount,
+        avgIterations: avgIterations.toFixed(1),
+      },
+      processingTime
+    )
 
     return {
       researchResults,

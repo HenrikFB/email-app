@@ -3,15 +3,18 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Save, Search, MessageSquare, X } from 'lucide-react'
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import { Save, Search, MessageSquare, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import ResultCard from './components/result-card'
 import SaveToKBModal from './components/save-to-kb-modal'
 import SearchModal from './components/search-modal'
 import ChatSearchPanel from './components/chat-search-panel'
+import EmailPreviewPanel from './components/email-preview-panel'
+import DebugModal from './components/debug-modal'
 
 type FilterType = 'all' | 'matched' | 'not-matched'
 type SortType = 'date-desc' | 'date-asc' | 'confidence-desc' | 'confidence-asc'
@@ -19,11 +22,61 @@ type SourceSelectionInput = {
   emailId: string
   sourceId: string
   label: string
-  data: any
+  data: unknown
+}
+
+interface JobData {
+  id?: string
+  source_name?: string
+  source_url?: string | null
+  matched?: boolean
+  company?: string
+  position?: string
+  location?: string
+  confidence?: number
+  matchReasoning?: string
+  technologies?: string[]
+  deadline?: string | null
+  found?: boolean
+  sourceType?: string
+  iterations?: number
+  experience_level?: string
+  competencies?: string[]
+  company_domains?: string
+  work_type?: string
+  raw_content?: string
+}
+
+// Email result type for the results page
+interface EmailResult {
+  id: string
+  email_subject: string
+  email_from: string
+  email_date: string
+  email_html_body?: string
+  email_snippet?: string | null
+  matched?: boolean
+  confidence?: number
+  analyzed_at?: string
+  created_at?: string
+  agent_configuration_id?: string
+  agent_configurations?: {
+    name: string
+    email_address: string
+    match_criteria?: string | null
+    extraction_fields?: string | null
+    button_text_pattern?: string | null
+  } | null
+  extracted_data?: Record<string, unknown>
+  data_by_source?: unknown[]
+  reasoning?: string
+  scraped_urls?: string[]
+  scraped_content?: unknown
+  kb_search_results?: unknown
 }
 
 export default function ResultsPage() {
-  const [emails, setEmails] = useState<any[]>([])
+  const [emails, setEmails] = useState<EmailResult[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterType>('all')
@@ -33,6 +86,12 @@ export default function ResultsPage() {
   const [showSearchModal, setShowSearchModal] = useState(false)
   const [showChatSearch, setShowChatSearch] = useState(false)
   const [sourceSearchSelections, setSourceSearchSelections] = useState<SourceSelectionInput[]>([])
+  
+  // Split-screen state
+  const [showPreviewPanel, setShowPreviewPanel] = useState(true)
+  const [selectedEmailForPreview, setSelectedEmailForPreview] = useState<string | null>(null)
+  const [selectedJob, setSelectedJob] = useState<JobData | null>(null)
+  const [showDebugModal, setShowDebugModal] = useState(false)
 
   useEffect(() => {
     loadEmails()
@@ -89,7 +148,7 @@ export default function ResultsPage() {
         })
       })
 
-      setEmails(analyzedEmails || [])
+      setEmails((analyzedEmails || []) as EmailResult[])
     } catch (err) {
       console.error('Error:', err)
       setError('An unexpected error occurred')
@@ -109,9 +168,9 @@ export default function ResultsPage() {
   const sortedEmails = [...filteredEmails].sort((a, b) => {
     switch (sortBy) {
       case 'date-desc':
-        return new Date(b.analyzed_at || b.created_at).getTime() - new Date(a.analyzed_at || a.created_at).getTime()
+        return new Date(b.analyzed_at || b.created_at || '').getTime() - new Date(a.analyzed_at || a.created_at || '').getTime()
       case 'date-asc':
-        return new Date(a.analyzed_at || a.created_at).getTime() - new Date(b.analyzed_at || b.created_at).getTime()
+        return new Date(a.analyzed_at || a.created_at || '').getTime() - new Date(b.analyzed_at || b.created_at || '').getTime()
       case 'confidence-desc':
         return (b.confidence || 0) - (a.confidence || 0)
       case 'confidence-asc':
@@ -153,6 +212,23 @@ export default function ResultsPage() {
   const openSearchModal = (sources: SourceSelectionInput[] = []) => {
     setSourceSearchSelections(sources)
     setShowSearchModal(true)
+  }
+
+  // Get the currently selected email for the preview panel
+  const previewEmail = selectedEmailForPreview 
+    ? emails.find((e) => e.id === selectedEmailForPreview)
+    : null
+
+  // Handle email card click to show in preview
+  const handleEmailSelect = (emailId: string) => {
+    setSelectedEmailForPreview(emailId)
+    setSelectedJob(null) // Reset job selection when switching emails
+  }
+
+  // Handle job click from result card
+  const handleJobSelect = (emailId: string, job: JobData) => {
+    setSelectedEmailForPreview(emailId)
+    setSelectedJob(job)
   }
 
   if (loading) {
@@ -216,42 +292,55 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analysis Results</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight">Analysis Results</h1>
+          <p className="text-muted-foreground text-sm">
             {emails.length} email{emails.length !== 1 ? 's' : ''} analyzed • {matchedCount} matched • {notMatchedCount} not matched
             {selectedEmailIds.length > 0 && ` • ${selectedEmailIds.length} selected`}
           </p>
         </div>
         <div className="flex gap-2">
-          {/* AI Chat Search Button - Always visible */}
+          {/* Toggle Preview Panel */}
+          <Button
+            onClick={() => setShowPreviewPanel(!showPreviewPanel)}
+            variant="outline"
+            size="sm"
+            title={showPreviewPanel ? 'Hide preview panel' : 'Show preview panel'}
+          >
+            {showPreviewPanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+          </Button>
+          
+          {/* AI Chat Search Button */}
           <Button
             onClick={() => setShowChatSearch(!showChatSearch)}
             variant={showChatSearch ? 'default' : 'outline'}
+            size="sm"
             className={showChatSearch ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
           >
-            <MessageSquare className="mr-2 h-4 w-4" />
+            <MessageSquare className="mr-1 h-4 w-4" />
             AI Search
           </Button>
           
-        {selectedEmailIds.length > 0 && (
+          {selectedEmailIds.length > 0 && (
             <>
-            <Button onClick={() => setShowSaveModal(true)} variant="outline">
-              <Save className="mr-2 h-4 w-4" />
-              Save to KB ({selectedEmailIds.length})
-            </Button>
-            <Button onClick={() => openSearchModal()}>
-              <Search className="mr-2 h-4 w-4" />
-              Find Similar ({selectedEmailIds.length})
-            </Button>
+              <Button onClick={() => setShowSaveModal(true)} variant="outline" size="sm">
+                <Save className="mr-1 h-4 w-4" />
+                Save ({selectedEmailIds.length})
+              </Button>
+              <Button onClick={() => openSearchModal()} size="sm">
+                <Search className="mr-1 h-4 w-4" />
+                Similar ({selectedEmailIds.length})
+              </Button>
             </>
           )}
-          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
+      {/* Filters */}
+      <div className="flex items-center justify-between gap-4 p-4 border-b bg-muted/30">
         <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)} className="flex-1">
           <TabsList>
             <TabsTrigger value="all">
@@ -267,7 +356,7 @@ export default function ResultsPage() {
         </Tabs>
 
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortType)}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
           <SelectContent>
@@ -279,41 +368,90 @@ export default function ResultsPage() {
         </Select>
       </div>
 
-      {sortedEmails.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">No emails match the selected filter.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="flex items-center gap-2 pb-2">
-            <Checkbox
-              id="select-all"
-              checked={selectedEmailIds.length === sortedEmails.length && sortedEmails.length > 0}
-              onCheckedChange={toggleSelectAll}
-            />
-            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-              Select all ({sortedEmails.length})
-            </label>
+      {/* Main Content with Split Panel */}
+      <div className="flex-1 overflow-hidden">
+        {sortedEmails.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground">No emails match the selected filter.</p>
+              </CardContent>
+            </Card>
           </div>
-          <div className="space-y-4">
-            {sortedEmails.map((email: any) => (
-              <div key={email.id} className="flex gap-3">
-                <Checkbox
-                  checked={selectedEmailIds.includes(email.id)}
-                  onCheckedChange={() => toggleEmailSelection(email.id)}
-                  className="mt-6"
-                />
-                <div className="flex-1">
-                  <ResultCard result={email} onSourceSearch={openSearchModal} />
+        ) : (
+          <ResizablePanelGroup orientation="horizontal" className="h-full">
+            {/* Left Panel - Results List */}
+            <ResizablePanel defaultSize={showPreviewPanel ? 55 : 100} minSize={35}>
+              <div className="h-full overflow-auto p-4">
+                {/* Select All */}
+                <div className="flex items-center gap-2 pb-3 sticky top-0 bg-background z-10">
+                  <Checkbox
+                    id="select-all"
+                    checked={selectedEmailIds.length === sortedEmails.length && sortedEmails.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                    Select all ({sortedEmails.length})
+                  </label>
+                </div>
+
+                {/* Results */}
+                <div className="space-y-4">
+                  {sortedEmails.map((email) => {
+                    const emailData = email as { id: string }
+                    return (
+                      <div 
+                        key={emailData.id} 
+                        className={`flex gap-3 ${
+                          selectedEmailForPreview === emailData.id 
+                            ? 'ring-2 ring-primary ring-offset-2 rounded-lg' 
+                            : ''
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selectedEmailIds.includes(emailData.id)}
+                          onCheckedChange={() => toggleEmailSelection(emailData.id)}
+                          className="mt-6"
+                        />
+                        <div className="flex-1">
+                          <ResultCard 
+                            result={email as Parameters<typeof ResultCard>[0]['result']} 
+                            onSourceSearch={openSearchModal}
+                            onEmailClick={() => handleEmailSelect(emailData.id)}
+                            onJobClick={(job) => handleJobSelect(emailData.id, job)}
+                            isSelected={selectedEmailForPreview === emailData.id}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            </ResizablePanel>
 
+            {/* Resize Handle */}
+            {showPreviewPanel && (
+              <>
+                <ResizableHandle withHandle />
+
+                {/* Right Panel - Preview */}
+                <ResizablePanel defaultSize={45} minSize={30}>
+                  <div className="h-full border-l bg-muted/20 overflow-hidden">
+                    <EmailPreviewPanel
+                      email={previewEmail || null}
+                      selectedJob={selectedJob}
+                      onBackToEmail={() => setSelectedJob(null)}
+                      onOpenDebug={() => setShowDebugModal(true)}
+                    />
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        )}
+      </div>
+
+      {/* Modals */}
       <SaveToKBModal
         open={showSaveModal}
         onClose={() => setShowSaveModal(false)}
@@ -334,7 +472,14 @@ export default function ResultsPage() {
         selectedSources={sourceSearchSelections}
       />
 
-      {/* AI Chat Search Panel - Floating on the right side */}
+      <DebugModal
+        open={showDebugModal}
+        onOpenChange={setShowDebugModal}
+        email={previewEmail || null}
+        selectedJobData={selectedJob}
+      />
+
+      {/* AI Chat Search Panel - Floating */}
       {showChatSearch && (
         <div className="fixed right-6 bottom-6 w-[450px] z-50 shadow-2xl">
           <ChatSearchPanel

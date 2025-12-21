@@ -102,12 +102,37 @@ export interface AnalyzedEmailResult {
   auto_saved_to_kb_id?: string | null
 }
 
+interface JobData {
+  id?: string
+  source_name?: string
+  source_url?: string | null
+  matched?: boolean
+  company?: string
+  position?: string
+  location?: string
+  confidence?: number
+  matchReasoning?: string
+  technologies?: string[]
+  deadline?: string | null
+  found?: boolean
+  sourceType?: string
+  iterations?: number
+  experience_level?: string
+  competencies?: string[]
+  company_domains?: string
+  work_type?: string
+  raw_content?: string
+}
+
 interface ResultCardProps {
   result: AnalyzedEmailResult
   onSourceSearch?: (sources: SourceSelectionPayload[]) => void
+  onEmailClick?: () => void
+  onJobClick?: (job: JobData) => void
+  isSelected?: boolean
 }
 
-export default function ResultCard({ result, onSourceSearch }: ResultCardProps) {
+export default function ResultCard({ result, onSourceSearch, onEmailClick, onJobClick, isSelected }: ResultCardProps) {
   const [showExtractedData, setShowExtractedData] = useState(false)
   const [showRawData, setShowRawData] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -274,8 +299,8 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
   const rejectedSources = normalizedSources.filter((s) => (s as LangChainJobData).matched === false) || []
 
   return (
-    <Card className={cardClassName}>
-      <CardHeader>
+    <Card className={`${cardClassName} ${isSelected ? 'ring-2 ring-primary' : ''} ${onEmailClick ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}>
+      <CardHeader onClick={onEmailClick}>
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <CardTitle className="text-lg">{result.email_subject}</CardTitle>
@@ -297,7 +322,10 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowDetails(!showDetails)}
+              onClick={(e) => {
+                e.stopPropagation() // Prevent email click when toggling details
+                setShowDetails(!showDetails)
+              }}
               className="ml-2"
             >
               {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -496,8 +524,35 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                     const sourceType = langChainData.sourceType
                     const iterations = langChainData.iterations
 
+                    // Create job data for click handler
+                    const jobDataForClick: JobData = {
+                      id: sourceKey,
+                      source_name: company || undefined,
+                      source_url: sourceUrl || null,
+                      matched: true,
+                      company: company || undefined,
+                      position: position || undefined,
+                      location: location || undefined,
+                      confidence: confidence,
+                      matchReasoning: reasoning || undefined,
+                      technologies: technologies,
+                      deadline: deadline || null,
+                      found: found,
+                      sourceType: sourceType || undefined,
+                      iterations: iterations,
+                      experience_level: langChainData.experience_level,
+                      competencies: langChainData.competencies,
+                      company_domains: langChainData.company_domains,
+                      work_type: langChainData.work_type,
+                      raw_content: langChainData.raw_content,
+                    }
+
                     return (
-                      <div key={sourceKey} className="border-2 rounded-lg p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
+                      <div 
+                        key={sourceKey} 
+                        className="border-2 rounded-lg p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 cursor-pointer hover:border-green-400 hover:shadow-md transition-all"
+                        onClick={() => onJobClick?.(jobDataForClick)}
+                      >
                         {/* Job Header */}
                         <div className="flex items-start justify-between mb-4 pb-3 border-b-2 border-green-200">
                           <div className="flex-1">
@@ -506,27 +561,28 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                               <div>
                                 <h4 className="text-lg font-bold text-gray-900">{position}</h4>
                                 <p className="text-sm text-gray-600">at <span className="font-semibold">{company}</span></p>
-                              </div>
+                            </div>
                             </div>
                             {sourceUrl && (
-                              <a
+                                <a
                                 href={sourceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline mt-1"
-                              >
+                                onClick={(e) => e.stopPropagation()}
+                                >
                                 <ExternalLink className="h-3 w-3" />
                                 View Job Posting
-                              </a>
+                                </a>
                             )}
                           </div>
                           <div className="flex flex-col items-end gap-2">
-                            <Badge 
-                              variant="outline" 
+                          <Badge 
+                            variant="outline" 
                               className={`${getConfidenceColor(confidence)} font-bold text-sm px-3 py-1`}
-                            >
+                          >
                               {(confidence * 100).toFixed(0)}% match
-                            </Badge>
+                          </Badge>
                             {found !== undefined && (
                               <Badge variant={found ? "default" : "secondary"} className="text-xs">
                                 {found ? '🔍 Researched' : '📧 From Email'}
@@ -548,7 +604,7 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                             <div className="bg-white rounded-md p-3 shadow-sm">
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📅 Deadline</p>
                               <p className="text-sm font-medium text-gray-900">{deadline}</p>
-                            </div>
+                        </div>
                           )}
                           
                           {sourceType && (
@@ -615,29 +671,29 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                               // Skip fields we've already shown
                               if (['company', 'position', 'location', 'technologies', 'deadline'].includes(key)) return null
                               return (
-                                <div key={key} className="bg-white rounded-md shadow-sm p-3">
-                                  <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
-                                    {key.replace(/_/g, ' ')}:
-                                  </p>
-                                  <div className="text-sm text-gray-900">
-                                    {Array.isArray(value) ? (
-                                      <ul className="list-disc list-inside space-y-1 pl-2">
-                                        {value.map((item, idx) => (
-                                          <li key={idx} className="text-gray-800">{String(item)}</li>
-                                        ))}
-                                      </ul>
-                                    ) : typeof value === 'object' && value !== null ? (
-                                      <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
-                                        {JSON.stringify(value, null, 2)}
-                                      </pre>
-                                    ) : (
-                                      <p className="text-gray-800">{String(value)}</p>
-                                    )}
-                                  </div>
-                                </div>
+                            <div key={key} className="bg-white rounded-md shadow-sm p-3">
+                              <p className="text-sm font-semibold text-gray-800 mb-2 capitalize">
+                                {key.replace(/_/g, ' ')}:
+                              </p>
+                              <div className="text-sm text-gray-900">
+                                {Array.isArray(value) ? (
+                                  <ul className="list-disc list-inside space-y-1 pl-2">
+                                    {value.map((item, idx) => (
+                                      <li key={idx} className="text-gray-800">{String(item)}</li>
+                                    ))}
+                                  </ul>
+                                ) : typeof value === 'object' && value !== null ? (
+                                  <pre className="text-xs overflow-x-auto bg-gray-100 p-2 rounded font-mono">
+                                    {JSON.stringify(value, null, 2)}
+                                  </pre>
+                                ) : (
+                                  <p className="text-gray-800">{String(value)}</p>
+                                )}
+                              </div>
+                            </div>
                               )
                             })}
-                          </div>
+                        </div>
                         )}
 
                         {/* AI Reasoning */}
@@ -695,13 +751,40 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                     const location = isLangChain ? langChainData.location : (legacyData.data?.location as string | undefined)
                     const technologies = isLangChain ? langChainData.technologies : (legacyData.data?.technologies as string[] | undefined)
                     const reasoning = isLangChain ? langChainData.matchReasoning : legacyData.reasoning
+                    
+                    // Create job data for click handler
+                    const rejectedJobData: JobData = {
+                      id: sourceKey,
+                      source_name: company || undefined,
+                      source_url: langChainData.source_url || null,
+                      matched: false,
+                      company: company || undefined,
+                      position: position || undefined,
+                      location: location || undefined,
+                      confidence: sourceData.confidence || 0,
+                      matchReasoning: reasoning || undefined,
+                      technologies: technologies,
+                      deadline: langChainData.deadline || null,
+                      found: langChainData.found,
+                      sourceType: langChainData.sourceType || undefined,
+                      iterations: langChainData.iterations,
+                      experience_level: langChainData.experience_level,
+                      competencies: langChainData.competencies,
+                      company_domains: langChainData.company_domains,
+                      work_type: langChainData.work_type,
+                      raw_content: langChainData.raw_content,
+                    }
 
                     return (
-                      <div key={sourceKey} className={`border rounded-lg p-3 ${
-                        langChainData.rejectedAfterReEval 
-                          ? 'bg-orange-50 border-orange-300' 
-                          : 'bg-gray-50 border-gray-200'
-                      }`}>
+                      <div 
+                        key={sourceKey} 
+                        className={`border rounded-lg p-3 cursor-pointer hover:shadow-md transition-all ${
+                          langChainData.rejectedAfterReEval 
+                            ? 'bg-orange-50 border-orange-300 hover:border-orange-400' 
+                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => onJobClick?.(rejectedJobData)}
+                      >
                         {/* Job Header */}
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
@@ -710,23 +793,23 @@ export default function ResultCard({ result, onSourceSearch }: ResultCardProps) 
                               <p className="font-medium text-gray-700">{position}</p>
                               <p className="text-xs text-gray-500">at {company}</p>
                             </div>
-                          </div>
+                              </div>
                           <div className="flex flex-col items-end gap-1">
-                            <Badge 
-                              variant="outline" 
+                          <Badge 
+                            variant="outline" 
                               className={langChainData.rejectedAfterReEval 
                                 ? 'text-orange-600 border-orange-400 bg-orange-100' 
                                 : 'text-gray-500'
                               }
-                            >
+                          >
                               {langChainData.rejectedAfterReEval ? 'Rejected after review' : 'Not a match'}
-                            </Badge>
+                          </Badge>
                             {langChainData.reEvaluated && (
                               <span className="text-xs text-gray-400">✓ Full description reviewed</span>
                             )}
                           </div>
                         </div>
-                        
+
                         {/* Quick info */}
                         <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-2">
                           {location && <span>📍 {location}</span>}

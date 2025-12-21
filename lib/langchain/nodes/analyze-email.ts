@@ -4,14 +4,18 @@
  * Uses LLM to analyze email content, find job listings,
  * and extract structured data based on user configuration.
  * 
- * This node:
- * 1. Identifies jobs/opportunities in the email
- * 2. Extracts entities (companies, technologies, locations)
- * 3. Determines match status based on user criteria
- * 4. Generates search queries for research phase
+ * This node implements chain-of-thought reasoning for accurate
+ * job matching, following OpenAI's GPT-4.1 prompting best practices.
+ * 
+ * Key features:
+ * - Explicit <thinking> blocks for reasoning
+ * - Few-shot examples for consistent behavior
+ * - Danish/English bilingual support
+ * - Clear match/reject criteria with examples
  */
 
 import { ChatOpenAI } from '@langchain/openai'
+import { JOB_SEARCH_CONFIG, ANALYSIS_EXAMPLES } from '../configs'
 import type { 
   EmailWorkflowState, 
   JobListing, 
@@ -28,10 +32,14 @@ import type {
  */
 const EmailAnalysisJsonSchema = {
   name: 'email_analysis',
-  description: 'Extract structured job information from an email',
+  description: 'Extract structured job information from an email with reasoning',
   parameters: {
     type: 'object',
     properties: {
+      thinking: {
+        type: 'string',
+        description: 'Your step-by-step reasoning about the email and each job',
+      },
       isJobEmail: {
         type: 'boolean',
         description: 'Whether this email contains job listings',
@@ -58,11 +66,19 @@ const EmailAnalysisJsonSchema = {
             originalUrl: { type: 'string', description: 'URL to job posting if present' },
             matched: { type: 'boolean', description: 'Whether this job matches user criteria' },
             confidence: { type: 'number', description: 'Match confidence (0-1)' },
-            matchReasoning: { type: 'string', description: 'Reasoning for match decision' },
+            matchReasoning: { type: 'string', description: 'Detailed reasoning for match decision' },
             extractedData: { 
               type: 'object', 
-              description: 'Additional extracted fields based on extractionFields',
-              additionalProperties: true,
+              description: 'Additional extracted fields',
+              properties: {
+                experience_level: { type: 'string' },
+                experience_years: { type: 'string' },
+                deadline: { type: 'string' },
+                work_type: { type: 'string' },
+                salary: { type: 'string' },
+                competencies: { type: 'array', items: { type: 'string' } },
+                company_domain: { type: 'string' },
+              },
             },
           },
           required: ['company', 'position', 'technologies', 'matched', 'confidence', 'matchReasoning'],
@@ -84,12 +100,13 @@ const EmailAnalysisJsonSchema = {
         description: 'Brief summary of the email content',
       },
     },
-    required: ['isJobEmail', 'emailType', 'jobs', 'entities', 'summary'],
+    required: ['thinking', 'isJobEmail', 'emailType', 'jobs', 'entities', 'summary'],
   },
 }
 
 // Type for the analysis result
 interface EmailAnalysisResult {
+  thinking: string
   isJobEmail: boolean
   emailType: 'job_listing' | 'newsletter' | 'application_status' | 'other'
   jobs: Array<{
@@ -120,15 +137,13 @@ interface EmailAnalysisResult {
 const ANALYSIS_MODEL = 'gpt-4o-mini'
 
 // Maximum characters to send to the LLM for analysis
-// gpt-4o-mini has 128k context, but we want to leave room for response
-const MAX_CONTENT_LENGTH = 30000 // ~7500 tokens
+const MAX_CONTENT_LENGTH = 30000
 
 /**
  * Decode SafeLinks URLs to get the real URL
  */
 function decodeSafeLinksUrl(url: string): string {
   try {
-    // Microsoft SafeLinks format: https://...safelinks.protection.outlook.com/?url=ENCODED_URL&...
     if (url.includes('safelinks.protection.outlook.com')) {
       const urlObj = new URL(url)
       const realUrl = urlObj.searchParams.get('url')
@@ -144,17 +159,11 @@ function decodeSafeLinksUrl(url: string): string {
 
 /**
  * Filter and clean URLs for analysis
- * - Decode SafeLinks
- * - Remove duplicates
- * - Filter out tracking/unsubscribe/image links
- * - Keep job-related URLs (generic patterns, not platform-specific)
- * - Limit count
  */
 function cleanUrlsForAnalysis(urls: string[], maxUrls: number = 20): string[] {
   const seen = new Set<string>()
   const cleaned: string[] = []
   
-  // Patterns to EXCLUDE (noise)
   const excludePatterns = [
     /unsubscribe/i,
     /mailto:/i,
@@ -177,30 +186,25 @@ function cleanUrlsForAnalysis(urls: string[], maxUrls: number = 20): string[] {
     /instagram\.com/i,
   ]
   
-  // Patterns to INCLUDE (job-related - generic, not platform-specific)
   const includePatterns = [
-    /\/job/i,           // /job, /jobs, /jobannonce, etc.
-    /\/career/i,        // /careers, /career
-    /\/stilling/i,      // Danish: position
-    /\/vacancy/i,       // vacancy
-    /\/position/i,      // position
-    /\/arbejde/i,       // Danish: work
-    /\/ansog/i,         // Danish: apply
-    /\/apply/i,         // apply
-    /\/hire/i,          // hiring
-    /\/recruit/i,       // recruiting
+    /\/job/i,
+    /\/career/i,
+    /\/stilling/i,
+    /\/vacancy/i,
+    /\/position/i,
+    /\/arbejde/i,
+    /\/ansog/i,
+    /\/apply/i,
+    /\/hire/i,
+    /\/recruit/i,
   ]
   
   for (const url of urls) {
     const decoded = decodeSafeLinksUrl(url)
     
-    // Skip if already seen
     if (seen.has(decoded)) continue
-    
-    // Skip excluded patterns
     if (excludePatterns.some(p => p.test(decoded))) continue
     
-    // Include if matches job-related patterns
     if (includePatterns.some(p => p.test(decoded))) {
       seen.add(decoded)
       cleaned.push(decoded)
@@ -213,96 +217,147 @@ function cleanUrlsForAnalysis(urls: string[], maxUrls: number = 20): string[] {
 }
 
 /**
- * Build analysis prompt based on user configuration
+ * Build the comprehensive analysis prompt with chain-of-thought
  */
 function buildAnalysisPrompt(config: { 
   matchCriteria: string
   extractionFields: string
   userIntent?: string
 }): string {
-  return `You are an expert email analyzer specializing in job listings and career opportunities.
+  // Get few-shot examples
+  const examples = ANALYSIS_EXAMPLES
 
-## YOUR TASK
-Analyze the email content and extract structured information about job opportunities.
+  return `You are an expert email analyzer specializing in job listings and career opportunities.
+You analyze emails from job boards like Jobindex, karriere.dk, LinkedIn, and company newsletters.
+
+## YOUR MISSION
+Extract ALL job opportunities from the email and determine which ones match the user's criteria.
+Use careful, step-by-step reasoning to make accurate decisions.
+
+## CHAIN-OF-THOUGHT APPROACH
+For EACH job you find, you MUST reason through these steps in your <thinking>:
+
+1. **IDENTIFY THE JOB**
+   - What is the exact job title? (in original language)
+   - What company is hiring?
+   - Where is the job located?
+
+2. **CHECK JOB TYPE** (Is this software development?)
+   - Is this a software/web/cloud development role? → Continue
+   - Is this PLC/SCADA/industrial automation? → REJECT
+   - Is this hardware/embedded/firmware? → REJECT
+   - Is this non-technical (PM, Scrum Master)? → REJECT
+
+3. **CHECK TECHNOLOGIES**
+   - What technologies are mentioned?
+   - Do they match the user's skills?
+   - Are there any deal-breakers?
+
+4. **CHECK EXPERIENCE LEVEL**
+   - What experience is required?
+   - Is it appropriate for the user?
+   - Flag if clearly senior (5+ years, Lead, Architect)
+
+5. **MAKE DECISION**
+   - MATCH: Job fits criteria → confidence 0.7-1.0
+   - UNCERTAIN: Could fit, needs more info → confidence 0.5-0.7
+   - REJECT: Clearly doesn't fit → matched: false
 
 ## USER'S MATCH CRITERIA
-The user is looking for jobs matching these criteria:
 ${config.matchCriteria}
 
 ## FIELDS TO EXTRACT
-For each job, extract these fields into extractedData:
 ${config.extractionFields}
 
 ## USER'S INTENT
 ${config.userIntent || 'Find relevant job opportunities'}
 
-## ANALYSIS INSTRUCTIONS
+## DANISH LANGUAGE SUPPORT
+The email may be in Danish. Common terms:
+- "softwareudvikler" = software developer
+- "udvikler" = developer
+- "programmør" = programmer
+- "stilling" = position
+- "erfaring" = experience
+- "års erfaring" = years of experience
+- "ansøgningsfrist" = application deadline
+- "hjemmearbejde" = remote work
+- "København" = Copenhagen
 
-### 1. Email Classification
-First, determine if this is a job-related email:
-- Job listing emails (from job boards, recruiters, companies)
-- Newsletters with job content
-- Application status updates
-- Other (not job related)
+## FEW-SHOT EXAMPLES
 
-### 2. Job Extraction
-For each job mentioned:
-- Extract company name and position
-- Identify location (city, country, remote, hybrid)
-- List technologies and skills mentioned
-- Find the URL to the full job posting
-- Determine if it matches user criteria
+### Example 1: Clear Match
+Input:
+${examples.goodMatch.input}
 
-### 3. Match Decision
-For each job, reason about whether it matches the user's criteria:
-- matched: true/false based on criteria alignment
-- confidence: 0.0-1.0 how confident you are
-- matchReasoning: explain your reasoning about why it matches or not
+Reasoning:
+${examples.goodMatch.reasoning}
 
-MATCHING APPROACH - Be INCLUSIVE, not strict:
+Output:
+- matched: ${examples.goodMatch.output.matched}
+- confidence: ${examples.goodMatch.output.confidence}
+- matchReasoning: "${examples.goodMatch.output.matchReasoning}"
 
-1. EQUIVALENT TERMS (treat as the same):
-   - "Software Engineer" = "Software Developer" = "Programmer" = "Udvikler"
-   - These are interchangeable job titles for the same type of work
+### Example 2: Clear Rejection
+Input:
+${examples.clearRejection.input}
 
-2. ONLY REJECT jobs that are CLEARLY outside software development:
-   - PLC programming, SCADA systems (industrial control)
-   - Hardware/electronic/mechanic engineering
-   - Embedded systems (hardware-focused, microcontrollers, firmware)
-   - Automation Engineer IF focused on industrial PLCs (not software automation)
+Reasoning:
+${examples.clearRejection.reasoning}
 
-3. INCLUDE all software-related positions:
-   - Backend, Frontend, Fullstack, Web development
-   - Cloud, DevOps, MLOps, Platform engineering
-   - AI/ML, Data engineering, Data science
-   - Security, Cryptography, Compliance (software-based)
-   - IT/Solution Architecture
-   - ERP/CRM development
+Output:
+- matched: ${examples.clearRejection.output.matched}
+- confidence: ${examples.clearRejection.output.confidence}
+- matchReasoning: "${examples.clearRejection.output.matchReasoning}"
 
-4. EXPERIENCE LEVEL: Let the user's criteria guide you
-   - Read what they specified about experience
-   - Use confidence to reflect uncertainty (e.g., Senior role when user wants <5 years → match with 0.5-0.6 confidence)
-   - Explain your reasoning in matchReasoning
+### Example 3: Edge Case (Senior Role)
+Input:
+${examples.edgeCase.input}
 
-5. WHEN IN DOUBT → MATCH IT
-   - Better to include a borderline job than miss a relevant one
-   - Use confidence 0.5-0.7 for uncertain matches
-   - The user can review and filter later
+Reasoning:
+${examples.edgeCase.reasoning}
 
-### 4. Entity Extraction
-Extract all mentioned:
-- Companies (employer names)
-- Technologies (programming languages, frameworks, tools)
-- Locations (cities, countries, "remote", "hybrid")
-- Positions (job titles)
-- Skills (soft skills, qualifications)
+Output:
+- matched: ${examples.edgeCase.output.matched}
+- confidence: ${examples.edgeCase.output.confidence}
+- matchReasoning: "${examples.edgeCase.output.matchReasoning}"
 
-## IMPORTANT NOTES
-- LinkedIn URLs are common but require authentication - still extract them
-- Some emails list multiple jobs - extract ALL of them
-- For technologies, include specific versions if mentioned (e.g., "React 18", ".NET 8")
+### Example 4: Danish Job Posting
+Input:
+${examples.danishExample.input}
 
-Call the email_analysis function with your structured analysis.`
+Reasoning:
+${examples.danishExample.reasoning}
+
+Output:
+- matched: ${examples.danishExample.output.matched}
+- confidence: ${examples.danishExample.output.confidence}
+- matchReasoning: "${examples.danishExample.output.matchReasoning}"
+
+## REJECTION TRIGGERS (Auto-reject if present)
+- PLC, SCADA, Siemens S7, TIA Portal
+- Embedded, Firmware, RTOS, Microcontroller
+- Hardware Engineer, Electronic Design, PCB
+- Mechanical, Mechatronic
+- Industrial Automation (unless clearly software)
+
+## IMPORTANT RULES
+1. Extract ALL jobs from the email, not just the first few
+2. LinkedIn URLs are common - extract them but note they require auth
+3. ALWAYS provide your reasoning in the "thinking" field
+4. When uncertain, MATCH with lower confidence (0.5-0.7) - let user decide
+5. For Danish postings, translate key terms in your reasoning
+
+## OUTPUT
+Call the email_analysis function with:
+- thinking: Your complete chain-of-thought reasoning
+- isJobEmail: true/false
+- emailType: job_listing/newsletter/application_status/other
+- jobs: Array of all jobs found with match decisions
+- entities: All companies, technologies, locations mentioned
+- summary: Brief summary of the email
+
+Remember: The user wants to see ALL potentially relevant jobs. Include uncertain matches with appropriate confidence scores.`
 }
 
 // ============================================
@@ -311,7 +366,7 @@ Call the email_analysis function with your structured analysis.`
 
 /**
  * Analyze email node function
- * Uses LLM to extract jobs and entities from email content
+ * Uses LLM with chain-of-thought to extract jobs and entities from email content
  * 
  * @param state - Current workflow state
  * @returns Updated state with analysis results
@@ -319,7 +374,7 @@ Call the email_analysis function with your structured analysis.`
 export async function analyzeEmailNode(
   state: EmailWorkflowState
 ): Promise<Partial<EmailWorkflowState>> {
-  console.log('\n🔍 [Analyze Email] Starting analysis...')
+  console.log('\n🔍 [Analyze Email] Starting chain-of-thought analysis...')
   
   const startTime = Date.now()
   
@@ -343,8 +398,14 @@ export async function analyzeEmailNode(
       tool_choice: { type: 'function' as const, function: { name: 'email_analysis' } },
     })
 
-    // Build the prompt
-    const systemPrompt = buildAnalysisPrompt(state.config)
+    // Build the prompt - use hardcoded config or state config
+    const config = {
+      matchCriteria: state.config.matchCriteria || JOB_SEARCH_CONFIG.matchCriteria,
+      extractionFields: state.config.extractionFields || JOB_SEARCH_CONFIG.extractionFields,
+      userIntent: state.config.userIntent || JOB_SEARCH_CONFIG.userIntent,
+    }
+    
+    const systemPrompt = buildAnalysisPrompt(config)
     
     // Clean and limit URLs
     const allUrls = state.entities?.urls || []
@@ -358,7 +419,7 @@ export async function analyzeEmailNode(
       truncated = true
     }
     
-    // Prepare email content for analysis (optimized for token usage)
+    // Prepare email content for analysis
     const emailContent = `## EMAIL METADATA
 Subject: ${state.cleanedEmail.subject}
 From: ${state.cleanedEmail.from}
@@ -380,7 +441,6 @@ ${cleanedUrls.length > 0 ? `\n## JOB URLS (${cleanedUrls.length} of ${allUrls.le
     // Parse the tool call response
     let analysis: EmailAnalysisResult
     
-    // Check for tool calls in the response
     const toolCalls = response.additional_kwargs?.tool_calls
     if (toolCalls && toolCalls.length > 0) {
       const toolCall = toolCalls[0]
@@ -390,7 +450,6 @@ ${cleanedUrls.length > 0 ? `\n## JOB URLS (${cleanedUrls.length} of ${allUrls.le
         throw new Error('Tool call has no arguments')
       }
     } else if (typeof response.content === 'string' && response.content.trim().startsWith('{')) {
-      // Fallback: try to parse content as JSON
       analysis = JSON.parse(response.content)
     } else {
       throw new Error('No tool call response received')
@@ -399,6 +458,12 @@ ${cleanedUrls.length > 0 ? `\n## JOB URLS (${cleanedUrls.length} of ${allUrls.le
     console.log(`   Email type: ${analysis.emailType}`)
     console.log(`   Jobs found: ${analysis.jobs.length}`)
     console.log(`   Matched jobs: ${analysis.jobs.filter(j => j.matched).length}`)
+    
+    // Log the LLM's thinking (first 500 chars)
+    if (analysis.thinking) {
+      console.log(`\n   💭 LLM Reasoning (preview):`)
+      console.log(`   ${analysis.thinking.substring(0, 500)}...`)
+    }
 
     // Convert to JobListing format with IDs
     const jobs: JobListing[] = analysis.jobs.map((job, index) => ({
@@ -418,14 +483,12 @@ ${cleanedUrls.length > 0 ? `\n## JOB URLS (${cleanedUrls.length} of ${allUrls.le
     const searchQueries: SearchQuery[] = jobs
       .filter(job => job.matched)
       .flatMap((job, index) => [
-        // Primary search query
         {
           query: `${job.company} ${job.position} ${job.location || ''} careers`.trim(),
           entity: job.company,
-          priority: 10 - index, // Higher priority for earlier jobs
+          priority: 10 - index,
           type: 'job' as const,
         },
-        // Fallback query
         {
           query: `"${job.position}" "${job.company}" job description`,
           entity: job.company,
@@ -466,13 +529,17 @@ ${cleanedUrls.length > 0 ? `\n## JOB URLS (${cleanedUrls.length} of ${allUrls.le
     if (jobs.filter(j => j.matched).length > 0) {
       console.log('\n📋 Matched Jobs:')
       jobs.filter(j => j.matched).forEach(job => {
-        console.log(`   • ${job.position} at ${job.company} (${Math.round(job.confidence * 100)}%)`)
+        console.log(`   ✅ ${job.position} at ${job.company} (${Math.round(job.confidence * 100)}%)`)
+        console.log(`      → ${job.matchReasoning}`)
       })
-    } else {
-      console.log('\n📋 No matching jobs found')
-      // Log why each job didn't match
-      jobs.forEach(job => {
-        console.log(`   ✗ ${job.position} at ${job.company}: ${job.matchReasoning}`)
+    }
+    
+    // Log rejected jobs
+    if (jobs.filter(j => !j.matched).length > 0) {
+      console.log('\n📋 Rejected Jobs:')
+      jobs.filter(j => !j.matched).forEach(job => {
+        console.log(`   ❌ ${job.position} at ${job.company}`)
+        console.log(`      → ${job.matchReasoning}`)
       })
     }
 

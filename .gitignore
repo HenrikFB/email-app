@@ -48,3 +48,6 @@ next-env.d.ts
 
 # deep agent debug runs
 /debug-deep-agent
+
+# langchain debug runs
+/debug-langchain-runs

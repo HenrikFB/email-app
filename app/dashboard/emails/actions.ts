@@ -5,6 +5,7 @@ import { fetchEmails, getEmailById, type EmailFetchOptions, type Email, type Mic
 import { revalidatePath } from 'next/cache'
 import { getEmailProvider } from '@/lib/email-provider/factory'
 import { runEmailWorkflow, type EmailInput, type AgentConfig } from '@/lib/langchain'
+import { JOB_SEARCH_CONFIG } from '@/lib/langchain/configs/job-search-config'
 
 export async function getEmailsFromConnection(
   connectionId: string,
@@ -36,15 +37,13 @@ export async function getEmailsFromConnection(
     // Convert date filters to ISO format if needed
     const graphFilters: EmailFetchOptions = { ...filters }
     
-    // Microsoft Graph expects ISO date strings
+    // Microsoft Graph expects ISO date strings (YYYY-MM-DDTHH:MM:SSZ)
+    // UI now sends YYYY-MM-DD format, just append time
     if (filters.after && !filters.after.includes('T')) {
-      // Convert YYYY/MM/DD to ISO format
-      const [year, month, day] = filters.after.split('/')
-      graphFilters.after = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`
+      graphFilters.after = `${filters.after}T00:00:00Z`
     }
     if (filters.before && !filters.before.includes('T')) {
-      const [year, month, day] = filters.before.split('/')
-      graphFilters.before = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T23:59:59Z`
+      graphFilters.before = `${filters.before}T23:59:59Z`
     }
 
     // Use skipToken if provided
@@ -228,16 +227,20 @@ export async function analyzeSelectedEmails(
   let failedCount = 0
 
   try {
-    // Build LangChain config from agent_configurations
+    // Build LangChain config from HARDCODED values for easy debugging
+    // (Database values are ignored - edit lib/langchain/configs/job-search-config.ts instead)
     const langchainConfig: AgentConfig = {
       id: agentConfig.id,
-      matchCriteria: agentConfig.match_criteria || '',
-      extractionFields: agentConfig.extraction_fields || '',
-      userIntent: agentConfig.user_intent || undefined,
+      // Use hardcoded config for prompts (easier to debug and optimize)
+      matchCriteria: JOB_SEARCH_CONFIG.matchCriteria,
+      extractionFields: JOB_SEARCH_CONFIG.extractionFields,
+      userIntent: JOB_SEARCH_CONFIG.userIntent,
       draftGenerationEnabled: agentConfig.draft_generation_enabled || false,
       draftInstructions: agentConfig.draft_instructions || undefined,
       knowledgeBaseIds,
     }
+    
+    console.log('🔧 Using HARDCODED config from lib/langchain/configs/job-search-config.ts')
 
     // Process each email
     for (let i = 0; i < emailIds.length; i++) {
@@ -314,7 +317,9 @@ export async function analyzeSelectedEmails(
             competencies: extractedData.competencies || null,
             company_domains: extractedData.company_domains || extractedData.companyDomains || null,
             work_type: extractedData.work_type || extractedData.workType || null,
-            raw_content: research?.jobDescription?.substring(0, 1000) || null,
+            // Store research reasoning (structured summary) instead of raw content (website noise)
+            // The reasoning contains the parsed job requirements, technologies, etc.
+            raw_content: research?.reasoning || research?.jobDescription?.substring(0, 5000) || null,
             reEvaluated: wasReEvaluated,
             rejectedAfterReEval: wasRejectedAfterReEval,
             rejectionReason: wasRejectedAfterReEval ? (extractedData._changedReason as string) : null,

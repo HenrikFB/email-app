@@ -19,6 +19,7 @@ import { analyzeEmailNode } from './nodes/analyze-email'
 import { researchNode } from './nodes/research'
 import { reEvaluateNode } from './nodes/re-evaluate'
 import { aggregateNode } from './nodes/aggregate'
+import { debugLog } from './utils/debug-logger'
 import type { 
   EmailWorkflowState, 
   EmailInput, 
@@ -235,6 +236,9 @@ export async function runEmailWorkflow(
 ): Promise<EmailWorkflowResult> {
   const startTime = Date.now()
   
+  // Initialize debug logging if enabled
+  await debugLog.init(input.email.id, input.email.subject)
+  
   console.log('\n' + '═'.repeat(70))
   console.log('🚀 EMAIL WORKFLOW - START')
   console.log('═'.repeat(70))
@@ -243,6 +247,22 @@ export async function runEmailWorkflow(
   console.log(`🎯 Config: ${input.config.id}`)
   console.log(`📏 Content: ${input.email.htmlBody.length} characters`)
   console.log('═'.repeat(70))
+  
+  // Log initial input
+  await debugLog.logStep('workflow_start', {
+    emailId: input.email.id,
+    subject: input.email.subject,
+    from: input.email.from,
+    to: input.email.to,
+    date: input.email.date,
+    htmlBodyLength: input.email.htmlBody.length,
+    config: {
+      id: input.config.id,
+      matchCriteria: input.config.matchCriteria,
+      extractionFields: input.config.extractionFields,
+      userIntent: input.config.userIntent,
+    },
+  }, null)
 
   try {
     // Get the compiled workflow
@@ -287,7 +307,7 @@ export async function runEmailWorkflow(
     }
     console.log('═'.repeat(70) + '\n')
 
-    return {
+    const finalResult = {
       success: true,
       jobs: result.jobs,
       hasMatches: result.hasMatches,
@@ -297,11 +317,16 @@ export async function runEmailWorkflow(
       errors: result.errors,
       phase: result.currentPhase,
     }
+    
+    // Log final result and finish debug session
+    await debugLog.finish(finalResult)
+    
+    return finalResult
   } catch (error) {
     const totalTime = Date.now() - startTime
     console.error('\n❌ EMAIL WORKFLOW - ERROR:', error)
     
-    return {
+    const errorResult = {
       success: false,
       jobs: [],
       hasMatches: false,
@@ -310,6 +335,11 @@ export async function runEmailWorkflow(
       errors: [error instanceof Error ? error.message : 'Unknown error'],
       phase: 'error',
     }
+    
+    // Log error and finish debug session
+    await debugLog.finish(errorResult)
+    
+    return errorResult
   }
 }
 
