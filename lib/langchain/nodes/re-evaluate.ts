@@ -86,11 +86,13 @@ What matters is the JOB ROLE and EXPERIENCE LEVEL.
 
 ## CHAIN-OF-THOUGHT VERIFICATION
 
-### Step 1: IS THIS AN IT/SOFTWARE JOB?
+### Step 1: IS THIS AN IT/SOFTWARE/SECURITY JOB?
 <thinking>
-- Does this involve coding, software, IT, automation, data, or development?
-- Types that ARE valid: Software, DevOps, RPA, BI, Cloud, Data, Web, Mobile, IT-udvikler
+- Does this involve coding, software, IT, security, compliance, or development?
+- Types that ARE valid: Software, DevOps, RPA, Cloud, Web, Mobile, IT-udvikler
+- ALSO VALID: IT Security, Cybersecurity, Compliance, NIS2, GDPR, ISO27001, Risk Management
 - Types that are NOT valid: PLC/SCADA, Hardware, Embedded firmware, Mechanical
+- Types that are NOT valid: BI Developer, Data Engineer (user doesn't want these)
 </thinking>
 
 ### Step 2: EXPERIENCE CHECK (CRITICAL - READ CAREFULLY!)

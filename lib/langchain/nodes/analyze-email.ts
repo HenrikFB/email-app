@@ -242,11 +242,14 @@ For EACH job you find, you MUST reason through these steps in your <thinking>:
    - What company is hiring?
    - Where is the job located?
 
-2. **CHECK JOB TYPE** (Is this software development?)
-   - Is this a software/web/cloud development role? → Continue
+2. **CHECK JOB TYPE** (Is this IT/software/security?)
+   - Is this software/web/cloud development? → Continue
+   - Is this IT Security / Cybersecurity / Compliance? → Continue (user wants these!)
+   - Is this NIS2 / GDPR / ISO27001 / Risk Management? → Continue
    - Is this PLC/SCADA/industrial automation? → REJECT
    - Is this hardware/embedded/firmware? → REJECT
    - Is this non-technical (PM, Scrum Master)? → REJECT
+   - Is this BI/Data Engineering? → REJECT (user doesn't want these)
 
 3. **CHECK TECHNOLOGIES**
    - What technologies are mentioned?

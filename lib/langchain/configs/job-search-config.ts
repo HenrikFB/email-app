@@ -57,9 +57,15 @@ I prefer false positives over missing opportunities - I can filter manually.
 - Automation Developer / Automatiseringsudvikler
 - Process Automation Developer (software-based, NOT industrial PLC)
 
-### Data & BI
-- Data Engineer / Data Developer / Dataingeniør
-- BI Developer / BI-udvikler
+### IT Security & Compliance
+- IT Security Consultant / IT-sikkerhedskonsulent
+- Cybersecurity Consultant / Cyber Security Specialist
+- Information Security Analyst / Informationssikkerhed
+- Compliance Consultant / IT Compliance
+- Risk Management / Risikostyring
+- GDPR / NIS2 specialist
+- Security Advisor / Sikkerhedsrådgiver
+- Digitaliseringskonsulent (with security focus)
 
 ### Business Systems
 - Dynamics 365 Developer / CRM Developer / ERP Developer
@@ -131,7 +137,7 @@ WHAT I WANT:
 - IT development and consulting roles
 - DevOps and cloud engineering roles
 - RPA and automation development (UiPath, Power Platform)
-- Data engineering and BI development
+- IT Security / Cybersecurity / Compliance roles (NIS2, GDPR, ISO27001)
 - Business systems development (Dynamics 365, Salesforce, ERP)
 
 MY SKILLS:
@@ -640,6 +646,91 @@ DECISION: MATCH with confidence (0.8)
       matched: true,
       confidence: 0.8,
       matchReasoning: 'DevOps Engineer with Kubernetes, Docker, Azure. DevOps is software/infrastructure automation and matches IT development skills. Good match.',
+    },
+  },
+  
+  // Example 8: Cybersecurity / IT Security (SHOULD MATCH!)
+  cybersecurityMatch: {
+    input: `
+Job: Junior Consultant – Strategic Cyber Security
+Virksomhed: itm8 Denmark
+Sted: Nordhavn (hybrid)
+Teknologier: ISO27001, NIST CSF, CIS-18, risikostyring, beredskabsplaner
+Erfaring: Junior level, relevant uddannelse
+`,
+    reasoning: `
+<thinking>
+Let me analyze this Cybersecurity position:
+
+1. JOB TYPE CHECK:
+   - "Junior Consultant – Strategic Cyber Security" - IT security role ✓
+   - This is IT/cybersecurity consulting, not software development
+   - BUT user explicitly wants IT Security / Compliance roles ✓
+
+2. SECURITY/COMPLIANCE CHECK:
+   - ISO27001, NIST CSF, CIS-18 - security frameworks ✓
+   - Risikostyring (risk management) - compliance work ✓
+   - Beredskabsplaner (contingency plans) - security documentation ✓
+   - User has IT security/compliance background ✓
+
+3. EXPERIENCE CHECK:
+   - "Junior level" - this is entry level, perfect! ✓
+   - "relevant uddannelse" = relevant education
+   - No senior requirements ✓
+
+4. LOCATION CHECK:
+   - Nordhavn (Copenhagen area), hybrid - matches ✓
+
+DECISION: MATCH with high confidence (0.85)
+This is exactly the kind of IT security role the user wants!
+</thinking>
+`,
+    output: {
+      matched: true,
+      confidence: 0.85,
+      matchReasoning: 'Junior Cybersecurity Consultant role with ISO27001, NIST, risk management. User has IT security/compliance background. Junior level with hybrid work - excellent match.',
+    },
+  },
+
+  // Example 9: Compliance/NIS2 (SHOULD MATCH!)
+  complianceMatch: {
+    input: `
+Job: Digitaliseringskonsulent til cybersikkerhed
+Virksomhed: Furesø Kommune
+Sted: Værløse
+Teknologier: NIS2, GDPR, ISO27001/27002, risikostyring, databeskyttelse
+Erfaring: Erfaring med cyber- og informationssikkerhed
+`,
+    reasoning: `
+<thinking>
+Let me analyze this Compliance/Security position:
+
+1. JOB TYPE CHECK:
+   - "Digitaliseringskonsulent til cybersikkerhed" = Digitalization consultant for cybersecurity ✓
+   - This is IT security/compliance in public sector ✓
+   - User explicitly wants compliance/security roles ✓
+
+2. SECURITY/COMPLIANCE CHECK:
+   - NIS2, GDPR - compliance frameworks user knows ✓
+   - ISO27001/27002 - security standards ✓
+   - Risikostyring (risk management) ✓
+   - Databeskyttelse (data protection) ✓
+
+3. EXPERIENCE CHECK:
+   - "Erfaring med cyber- og informationssikkerhed" = experience with cyber and info security
+   - This is "erfaren" level, likely 3-5 years → BORDERLINE ⚠️
+   - Include but with lower confidence
+
+4. LOCATION CHECK:
+   - Værløse (Copenhagen area) - matches ✓
+
+DECISION: MATCH with borderline confidence (0.6) due to "erfaren" experience level
+</thinking>
+`,
+    output: {
+      matched: true,
+      confidence: 0.6,
+      matchReasoning: 'Digitalization consultant for cybersecurity with NIS2, GDPR, ISO27001. Matches IT security/compliance interests. BORDERLINE: "erfaren" (experienced) may mean 3-5 years.',
     },
   },
 }
