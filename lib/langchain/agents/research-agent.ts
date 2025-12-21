@@ -24,7 +24,8 @@ import type { JobListing, JobResearchResult, AgentConfig } from '../types'
 // ============================================
 
 const RESEARCH_AGENT_MODEL = 'gpt-4o-mini'
-const MAX_ITERATIONS = 15 // Allow enough iterations for thorough research
+// Use config value - reduced to prevent context overflow
+const MAX_ITERATIONS = JOB_SEARCH_CONFIG.research.maxIterations
 
 /**
  * Build the comprehensive system prompt for the research agent
@@ -167,6 +168,33 @@ You have succeeded when you can provide:
 3. ✅ Technologies/skills mentioned
 4. ✅ Public source URL
 5. ✅ Any deadline information
+
+## ⚡ EARLY STOPPING - STOP AS SOON AS YOU FIND IT!
+
+**IMPORTANT: Stop searching immediately once you have a valid job description!**
+
+When you find content that:
+- ✅ Mentions the correct company name
+- ✅ Has the job title or equivalent
+- ✅ Contains requirements/qualifications section
+- ✅ Is from a public URL (not LinkedIn)
+
+→ **STOP IMMEDIATELY and provide your final answer!**
+
+Do NOT continue searching "just to be thorough" - this wastes context and may cause errors.
+
+### Bad pattern (wastes context):
+1. Search → find career page
+2. Extract → valid job description ← SHOULD STOP HERE
+3. Search again "to verify" ← UNNECESSARY
+4. Extract another URL ← WASTES CONTEXT
+5. Error: context too long ← BAD!
+
+### Good pattern:
+1. Search → find career page
+2. Extract → valid job description
+3. Validate → matches criteria
+4. STOP → provide final answer immediately
 
 ## CRITICAL: JOB VALIDATION (Before Concluding "Found")
 

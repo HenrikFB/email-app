@@ -9,10 +9,12 @@
  * - Advanced extraction for complex pages
  * - Clean, structured content output
  * - Handles dynamic/JavaScript-rendered pages
+ * - Smart truncation to manage context limits
  */
 
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
+import { truncateJobDescription, CONTENT_LIMITS } from '../utils/content-trimmer'
 
 // ============================================
 // Tavily Extract Tool
@@ -91,27 +93,25 @@ export const tavilyExtractTool = tool(
 
       const data = await response.json()
 
-      // Process results - TRUNCATE to prevent rate limits
-      const MAX_CONTENT_LENGTH = 15000 // ~4000 tokens
-      
+      // Process results with SMART truncation (keeps beginning + end, removes middle)
       const results = (data.results || []).map((r: {
         url: string
         raw_content?: string
         content?: string
       }) => {
-        let content = r.raw_content || r.content || ''
-        const originalLength = content.length
+        const rawContent = r.raw_content || r.content || ''
         
-        // Truncate if too long
-        if (content.length > MAX_CONTENT_LENGTH) {
-          content = content.substring(0, MAX_CONTENT_LENGTH) + '\n\n[CONTENT TRUNCATED - original was ' + originalLength + ' chars]'
-        }
+        // Use smart truncation that preserves beginning and end
+        const { content, truncated, originalLength } = truncateJobDescription(
+          rawContent,
+          CONTENT_LIMITS.MAX_CONTENT_LENGTH
+        )
         
         return {
           url: r.url,
           rawContent: content,
           contentLength: originalLength,
-          truncated: originalLength > MAX_CONTENT_LENGTH,
+          truncated,
           success: !!(r.raw_content || r.content),
         }
       })
@@ -233,15 +233,15 @@ export const extractJobDescriptionTool = tool(
         })
       }
 
-      let content = result.raw_content
-      const originalLength = content.length
-      const wasTruncated = originalLength > 15000
-      
-      // Truncate if too long to prevent rate limits
-      const MAX_CONTENT_LENGTH = 15000
-      if (wasTruncated) {
-        content = content.substring(0, MAX_CONTENT_LENGTH) + `\n\n[CONTENT TRUNCATED - original ${originalLength} chars]`
-      }
+      // Use smart truncation that preserves beginning and end
+      const { 
+        content, 
+        truncated: wasTruncated, 
+        originalLength 
+      } = truncateJobDescription(
+        result.raw_content,
+        CONTENT_LIMITS.MAX_CONTENT_LENGTH
+      )
 
       // Basic content analysis
       const contentLower = content.toLowerCase()

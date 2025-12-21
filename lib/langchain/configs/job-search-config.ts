@@ -246,11 +246,18 @@ I can quickly scan and filter myself.
       'twitter.com',
     ],
     
-    // Max iterations for research agent
-    maxIterations: 15,
+    // Max iterations for research agent (reduced to prevent context overflow)
+    maxIterations: 8,
     
     // Max concurrent research jobs
     maxConcurrent: 3,
+    
+    // Context management
+    contextLimits: {
+      maxContentPerExtract: 8000,    // Chars per extracted page
+      maxContextTokens: 100000,      // When to start trimming (buffer for 128k limit)
+      keepRecentToolResults: 3,      // Always keep last N tool results
+    },
   },
 } as const
 
