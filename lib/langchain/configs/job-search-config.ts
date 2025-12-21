@@ -74,10 +74,12 @@ Cloud: Azure, AWS, GCP
 Data: PostgreSQL, SQL Server, MongoDB
 Automation: Power Platform, UiPath, Automation Anywhere
 
-## EXPERIENCE LEVEL
-- Be FLEXIBLE - note experience requirements but don't auto-reject
-- Flag jobs requiring 5+ years or "Senior"/"Lead"/"Architect" - but still INCLUDE them
-- Let me decide if a senior role is worth applying to
+## EXPERIENCE LEVEL RULES
+- **0-3 years**: Perfect match → confidence 0.8-1.0
+- **3-5 years**: Borderline → INCLUDE but reduce confidence to 0.5-0.6, flag as "borderline experience"
+- **5+ years / Senior / Lead / Architect**: Too senior → REJECT (matched: false)
+
+Note: "erfaren" (experienced) in Danish often means 3-5 years, include with lower confidence
 
 ## HARD REJECTION (Only reject these specific ROLES)
 ⚠️ IMPORTANT: Reject based on the JOB ROLE, NOT the company!
@@ -139,10 +141,11 @@ MY SKILLS:
 - Cloud: Azure, AWS, GCP
 - Automation: Power Platform, UiPath
 
-EXPERIENCE: 
-- I'm flexible on experience level
-- Flag senior roles (5+ years) but still include them
-- Let ME decide if a senior role is worth pursuing
+EXPERIENCE REQUIREMENTS:
+- I want jobs requiring 0-3 years experience (best match)
+- Jobs requiring 3-5 years are borderline - include with lower confidence
+- Jobs requiring 5+ years are TOO SENIOR - reject them
+- "Senior", "Lead", "Principal", "Architect" titles usually mean 5+ years - reject
 
 LOCATION: Denmark (Copenhagen, Aarhus, Aalborg, Odense, or remote)
 
@@ -315,7 +318,7 @@ DECISION: MATCH with high confidence (0.9)
     },
   },
 
-  // Example 2: Software Developer at Industrial Company (SHOULD MATCH!)
+  // Example 2: Software Developer at Industrial Company (5-8 years = REJECT)
   softwareAtIndustrialCompany: {
     input: `
 Job: Software Developer – C# and Automation
@@ -331,8 +334,7 @@ Let me analyze this job step by step:
 1. JOB TYPE CHECK:
    - Title: "Software Developer" - this IS software development ✓
    - Technologies: C#, .NET, SQL, Azure - these are standard software technologies ✓
-   - "Automation" in title might raise a flag, but let me check the technologies...
-   - The technologies are software-focused (C#, .NET, SQL), NOT PLC/SCADA ✓
+   - "Automation" in title but technologies are software-focused, NOT PLC/SCADA ✓
 
 2. COMPANY DOMAIN CHECK:
    - ABB is known for industrial automation
@@ -345,24 +347,54 @@ Let me analyze this job step by step:
    - Power Apps - automation/low-code, relevant ✓
    - NO PLC, NO SCADA, NO Siemens S7 mentioned ✓
 
-4. REJECTION CHECK:
-   - Is there PLC/Siemens S7 in the requirements? NO ✓
-   - Is there SCADA? NO ✓
-   - Is there embedded/firmware? NO ✓
-   - This is a standard software developer role!
+4. EXPERIENCE CHECK:
+   - 5-8 years required - this is OVER my limit ✗
+   - User's rule: 5+ years → REJECT
+   - Even though technologies match, experience is too high
 
-5. EXPERIENCE CHECK:
-   - 5-8 years - on the higher side ⚠️
-   - Flag as senior, but INCLUDE (user is flexible on experience)
+DECISION: REJECT (5+ years experience required)
+The role itself is software, but 5-8 years is too senior.
+</thinking>
+`,
+    output: {
+      matched: false,
+      confidence: 0.9,
+      matchReasoning: 'REJECTED: Requires 5-8 years experience which exceeds the 5 year limit. Technologies match (C#, .NET, SQL, Azure) but experience is too senior.',
+    },
+  },
+  
+  // Example: 3-5 years = borderline, include with low confidence
+  borderlineExperience: {
+    input: `
+Job: .NET Developer
+Virksomhed: KMD A/S
+Sted: Aalborg
+Teknologier: C#, .NET, SQL Server, Azure
+Erfaring: 3-5 years experience
+`,
+    reasoning: `
+<thinking>
+Let me analyze this job step by step:
 
-DECISION: MATCH with confidence (0.75)
-This is exactly the kind of software role we want, even though ABB is an industrial company!
+1. JOB TYPE CHECK:
+   - Title: ".NET Developer" - software development ✓
+   - Technologies: C#, .NET, SQL Server, Azure ✓
+
+2. TECHNOLOGY CHECK:
+   - All technologies match my skills ✓
+
+3. EXPERIENCE CHECK:
+   - 3-5 years required - this is BORDERLINE ⚠️
+   - User's rule: 3-5 years → include with LOW confidence (0.5-0.6)
+   - Not over 5 years so don't reject, but flag it
+
+DECISION: MATCH with LOW confidence (0.55) - borderline experience
 </thinking>
 `,
     output: {
       matched: true,
-      confidence: 0.75,
-      matchReasoning: 'Software Developer role using C#, .NET, SQL, Azure - standard software technologies. The company (ABB) being industrial does NOT matter - the job itself is software development. Flagged as senior (5-8 years) but included.',
+      confidence: 0.55,
+      matchReasoning: 'Technologies match well (C#, .NET, SQL Server, Azure). BORDERLINE: Requires 3-5 years experience - at the upper end of acceptable range. Flagged for review.',
     },
   },
 
@@ -398,7 +430,7 @@ DECISION: REJECT
     },
   },
 
-  // Example 3: Edge case - match with lower confidence
+  // Example 3: Senior role (SHOULD REJECT - 7+ years)
   edgeCase: {
     input: `
 Job: Senior Software Architect at Novo Nordisk
@@ -415,28 +447,27 @@ Let me analyze this job step by step:
    - Technologies are relevant (.NET, Azure, Kubernetes) ✓
 
 2. TECHNOLOGY CHECK:
-   - .NET, Azure - matches my skills ✓
+   - .NET, Azure - matches skills ✓
    - Kubernetes - cloud-native ✓
-   - System Design - relevant ✓
 
 3. EXPERIENCE CHECK:
-   - 7+ years required - this is senior level ⚠️
-   - "Lead experience preferred" - might be too senior ⚠️
-   - User wants flexible experience but should know about senior requirements
+   - 7+ years required - this is WAY over my limit ✗
+   - "Lead experience preferred" - definitely senior level ✗
+   - User's rule: 5+ years → REJECT
+   - 7+ years is clearly over the 5 year threshold
 
 4. DECISION REASONING:
-   - Technologies match perfectly
-   - But experience level is high (7+ years)
-   - User said "flexible" on experience, wants to see all opportunities
-   - Include it but with lower confidence so user can decide
+   - Technologies match, BUT experience is 7+ years
+   - User explicitly said 5+ years should be rejected
+   - This is a senior role, not appropriate
 
-DECISION: MATCH with medium confidence (0.6)
+DECISION: REJECT (5+ years experience required)
 </thinking>
 `,
     output: {
-      matched: true,
-      confidence: 0.6,
-      matchReasoning: 'Technologies match well (.NET, Azure, Kubernetes), but requires 7+ years and lead experience - flagging as senior role for user review.',
+      matched: false,
+      confidence: 0.9,
+      matchReasoning: 'REJECTED: Requires 7+ years experience which exceeds the 5 year limit. This is a senior/architect role.',
     },
   },
 

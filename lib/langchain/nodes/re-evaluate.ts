@@ -51,7 +51,19 @@ Your job is to VERIFY and ENRICH the match information.
 They prefer FALSE POSITIVES over missing opportunities.
 They can filter manually - your job is to NOT miss good opportunities.
 
-### ONLY REJECT if the JOB ROLE requires HARD DISQUALIFIERS:
+### REJECT if ANY of these DISQUALIFIERS are found:
+
+**EXPERIENCE DISQUALIFIERS (CHECK THE FULL JOB DESCRIPTION!):**
+1. Requires 5+ years experience → REJECT
+2. Requires "Senior" level explicitly → REJECT  
+3. Requires "Lead", "Principal", "Architect" experience → REJECT
+4. Danish: "5+ års erfaring", "erfaren senior" → REJECT
+
+**EXPERIENCE BORDERLINE (Include with LOW confidence 0.5-0.6):**
+- Requires 3-5 years → Include but flag, confidence 0.5-0.6
+- Danish: "erfaren" (experienced) without years → Assume 3-5, include with low confidence
+
+**JOB TYPE DISQUALIFIERS:**
 1. PLC programming with Siemens S7/TIA Portal (industrial automation controllers)
 2. SCADA systems (industrial control software)
 3. Embedded firmware/RTOS with microcontrollers (STM32, Arduino, bare-metal)
@@ -60,15 +72,15 @@ They can filter manually - your job is to NOT miss good opportunities.
 
 ### ⚠️ COMPANY DOMAIN DOES NOT MATTER!
 A software developer job at ABB, Siemens, Grundfos, Vestas, or ANY industrial company is VALID.
-What matters is the JOB ROLE, not what the company manufactures.
+What matters is the JOB ROLE and EXPERIENCE LEVEL.
 
-✅ "Software Developer at ABB using C#, .NET, SQL" → INCLUDE (it's a software role!)
-❌ "PLC Programmer at ABB using Siemens S7, TIA Portal" → REJECT (it's PLC programming)
+✅ "Software Developer at ABB using C#, 2-3 years" → INCLUDE (software role, good experience)
+⚠️ "Software Developer at ABB, 3-5 years" → INCLUDE with LOW confidence (borderline experience)
+❌ "Senior Software Developer at ABB, 5+ years" → REJECT (too much experience)
+❌ "PLC Programmer at ABB using Siemens S7" → REJECT (PLC programming)
 
 ### DO NOT REJECT for:
 - The company's industry (manufacturing, utilities, healthcare, etc.)
-- Experience level (flag it, but don't reject)
-- Senior roles (user wants to see them and decide)
 - Technologies user doesn't know yet (they can learn)
 - Uncertainty about the role (include with lower confidence)
 
@@ -81,11 +93,16 @@ What matters is the JOB ROLE, not what the company manufactures.
 - Types that are NOT valid: PLC/SCADA, Hardware, Embedded firmware, Mechanical
 </thinking>
 
-### Step 2: EXPERIENCE CHECK (Flag, don't reject)
+### Step 2: EXPERIENCE CHECK (CRITICAL - READ CAREFULLY!)
 <thinking>
-- What experience level is mentioned?
-- Flag if senior (5+ years) but STILL INCLUDE
-- User said they're flexible on experience
+- Search the FULL job description for experience requirements
+- Look for: "X years", "X+ years", "X-Y years", "års erfaring", "senior", "lead"
+- Apply these rules:
+  * 0-3 years → GOOD, normal confidence
+  * 3-5 years → BORDERLINE, reduce confidence to 0.5-0.6, flag it
+  * 5+ years → REJECT! Too senior
+  * "Senior" in title/requirements → Usually means 5+, REJECT
+  * "Lead", "Principal", "Architect" → REJECT
 </thinking>
 
 ### Step 3: TECHNOLOGY ENRICHMENT
@@ -96,9 +113,9 @@ What matters is the JOB ROLE, not what the company manufactures.
 </thinking>
 
 ### Step 4: FINAL DECISION
-- CONFIRMED MATCH: Definitely relevant IT/software job
-- MATCH WITH FLAG: Relevant but has concerns (senior, unfamiliar tech) - STILL INCLUDE
-- REJECTED: ONLY if hard disqualifiers found (PLC/SCADA/embedded/hardware)
+- CONFIRMED MATCH (0.7-1.0): IT/software job with 0-3 years experience
+- BORDERLINE MATCH (0.5-0.6): IT/software job with 3-5 years - include but flag
+- REJECTED: Experience is 5+ years OR job type is PLC/SCADA/embedded/hardware
 
 ## USER'S MATCH CRITERIA
 ${config.matchCriteria}
@@ -122,11 +139,11 @@ Respond with a JSON object:
   "stillMatches": true/false,
   "confidence": 0.0-1.0,
   "reasoning": "Brief explanation of your decision",
-  "changedReason": "ONLY if rejecting - what hard disqualifier was found?",
+  "changedReason": "ONLY if rejecting - e.g. 'Requires 5+ years experience' or 'PLC programming role'",
   "extractedFields": {
     "deadline": "extracted deadline or null",
     "experience_level": "junior/mid/senior/lead/not specified",
-    "experience_years": "X-Y years or X+ years or null",
+    "experience_years": "X-Y years or X+ years or null (EXTRACT THIS CAREFULLY!)",
     "technologies": ["required", "technologies"],
     "nice_to_have_technologies": ["optional", "technologies"],
     "competencies": ["soft", "skills"],
@@ -137,7 +154,10 @@ Respond with a JSON object:
 }
 \`\`\`
 
-REMEMBER: When in doubt, INCLUDE the job. User can filter manually.`
+REMEMBER: 
+- 5+ years experience = REJECT
+- 3-5 years = include with confidence 0.5-0.6
+- When in doubt about experience, include with lower confidence`
 }
 
 /**

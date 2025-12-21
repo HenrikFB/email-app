@@ -253,15 +253,17 @@ For EACH job you find, you MUST reason through these steps in your <thinking>:
    - Do they match the user's skills?
    - Are there any deal-breakers?
 
-4. **CHECK EXPERIENCE LEVEL**
-   - What experience is required?
-   - Is it appropriate for the user?
-   - Flag if clearly senior (5+ years, Lead, Architect)
+4. **CHECK EXPERIENCE LEVEL** (CRITICAL!)
+   - 0-3 years → Good match, normal confidence
+   - 3-5 years → BORDERLINE, include but with LOW confidence (0.5-0.6)
+   - 5+ years → REJECT! Too senior
+   - "Senior", "Lead", "Architect", "Principal" → Usually 5+ years, REJECT
+   - Danish: "erfaren" often means 3-5 years (borderline), "senior" is 5+ (reject)
 
 5. **MAKE DECISION**
-   - MATCH: Job fits criteria → confidence 0.7-1.0
-   - UNCERTAIN: Could fit, needs more info → confidence 0.5-0.7
-   - REJECT: Clearly doesn't fit → matched: false
+   - MATCH (0.7-1.0): Job fits criteria AND experience is 0-3 years
+   - BORDERLINE (0.5-0.6): Job fits BUT experience is 3-5 years - flag it
+   - REJECT: Experience is 5+ years OR is clearly senior level
 
 ## USER'S MATCH CRITERIA
 ${config.matchCriteria}
