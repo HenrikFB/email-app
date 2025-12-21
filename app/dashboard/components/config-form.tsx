@@ -195,36 +195,36 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
           <div className="space-y-4 pb-4 border-b">
             <h3 className="text-lg font-semibold">Basic Information</h3>
           
-            <div className="space-y-2">
-              <Label htmlFor="name">Configuration Name *</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="E.g., Jobs - Software Developer"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
+          <div className="space-y-2">
+            <Label htmlFor="name">Configuration Name *</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="E.g., Jobs - Software Developer"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                 A unique name to identify this configuration
-              </p>
-            </div>
+            </p>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="emailAddress">Email Address to Monitor</Label>
-              <Input
-                id="emailAddress"
-                type="email"
-                placeholder="incoming@example.com"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-                required
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
+          <div className="space-y-2">
+            <Label htmlFor="emailAddress">Email Address to Monitor</Label>
+            <Input
+              id="emailAddress"
+              type="email"
+              placeholder="incoming@example.com"
+              value={emailAddress}
+              onChange={(e) => setEmailAddress(e.target.value)}
+              required
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                 The email address you want to analyze
-              </p>
+            </p>
             </div>
           </div>
 
@@ -240,32 +240,32 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
               </CollapsibleTrigger>
               
               <CollapsibleContent className="space-y-4 pt-2">
-                <div className="space-y-2">
+          <div className="space-y-2">
                   <Label htmlFor="matchCriteria">What are you interested in? *</Label>
-                  <Textarea
-                    id="matchCriteria"
+            <Textarea
+              id="matchCriteria"
                     placeholder="E.g., Software developer jobs with less than 5 years experience, .NET, TypeScript, JavaScript, or RPA/automation. Avoid PLC/SCADA, hardware, electronic engineering, embedded systems."
-                    value={matchCriteria}
-                    onChange={(e) => setMatchCriteria(e.target.value)}
-                    rows={5}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
+              value={matchCriteria}
+              onChange={(e) => setMatchCriteria(e.target.value)}
+              rows={5}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                     Describe what emails/jobs you want to match. Be specific about what to include AND exclude.
-                  </p>
-                </div>
+            </p>
+          </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="extractionFields">What to extract if matched?</Label>
-                  <Textarea
-                    id="extractionFields"
+          <div className="space-y-2">
+            <Label htmlFor="extractionFields">What to extract if matched?</Label>
+            <Textarea
+              id="extractionFields"
                     placeholder="E.g., deadline, technologies, competencies, experience level, company domains, location, work type (remote/hybrid/onsite)"
-                    value={extractionFields}
-                    onChange={(e) => setExtractionFields(e.target.value)}
+              value={extractionFields}
+              onChange={(e) => setExtractionFields(e.target.value)}
                     rows={3}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
                     Fields to extract from matching jobs. The AI will populate these from email and web research.
                   </p>
                 </div>
@@ -342,7 +342,7 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                     <strong>Phase 2 Feature:</strong> After the LangChain agent finds matching jobs and researches them, 
                     it will search your Knowledge Base for relevant content (e.g., cover letter templates) and 
                     generate customized drafts.
-                  </p>
+                </p>
                 </div>
                 
                 <div className="flex items-start space-x-2 opacity-50">
@@ -365,24 +365,24 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                   </div>
                 </div>
                 
-                {draftGenerationEnabled && (
+                  {draftGenerationEnabled && (
                   <div className="space-y-2 pt-2 opacity-50">
-                    <Label htmlFor="draftInstructions">
-                      Draft Instructions
-                    </Label>
-                    <Textarea
-                      id="draftInstructions"
+                      <Label htmlFor="draftInstructions">
+                        Draft Instructions
+                      </Label>
+                      <Textarea
+                        id="draftInstructions"
                       placeholder="E.g., Generate a cover letter for each matching job using my KB content as a style reference."
-                      value={draftInstructions}
-                      onChange={(e) => setDraftInstructions(e.target.value)}
+                        value={draftInstructions}
+                        onChange={(e) => setDraftInstructions(e.target.value)}
                       rows={4}
                       disabled={true}
                     />
-                  </div>
-                )}
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
 
           {/* SECTION 4: Knowledge Base (Phase 2) */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
@@ -402,53 +402,53 @@ export default function ConfigForm({ config, onSuccess, onCancel }: ConfigFormPr
                     <strong>Phase 2 Feature:</strong> Assign knowledge bases (e.g., cover letter templates) 
                     to be searched when jobs match. Found snippets will be used for draft generation.
                   </p>
-                </div>
+          </div>
 
-                {knowledgeBases.length > 0 && (
+          {knowledgeBases.length > 0 && (
                   <div className="space-y-2">
-                    <Label>
+              <Label>
                       Assign Knowledge Bases <Badge variant="secondary" className="ml-1 text-xs">Optional</Badge>
-                    </Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
-                      {loadingKBs ? (
-                        <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
-                      ) : (
-                        knowledgeBases.map(kb => (
-                          <div key={kb.id} className="flex items-start space-x-2">
-                            <Checkbox
-                              id={`kb-${kb.id}`}
-                              checked={selectedKBIds.includes(kb.id)}
-                              onCheckedChange={() => toggleKBSelection(kb.id)}
-                              disabled={loading}
-                            />
-                            <div className="flex-1">
-                              <label
-                                htmlFor={`kb-${kb.id}`}
-                                className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                              >
-                                {kb.name}
-                                <Badge variant="outline" className="text-xs">
-                                  {kb.type}
-                                </Badge>
-                              </label>
-                              {kb.description && (
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {kb.description}
-                                </p>
-                              )}
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {kb.document_count} docs • {kb.total_chunks} chunks
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
+              </Label>
+              <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
+                {loadingKBs ? (
+                  <p className="text-sm text-muted-foreground">Loading knowledge bases...</p>
+                ) : (
+                  knowledgeBases.map(kb => (
+                    <div key={kb.id} className="flex items-start space-x-2">
+                      <Checkbox
+                        id={`kb-${kb.id}`}
+                        checked={selectedKBIds.includes(kb.id)}
+                        onCheckedChange={() => toggleKBSelection(kb.id)}
+                        disabled={loading}
+                      />
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`kb-${kb.id}`}
+                          className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                        >
+                          {kb.name}
+                          <Badge variant="outline" className="text-xs">
+                            {kb.type}
+                          </Badge>
+                        </label>
+                        {kb.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {kb.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {kb.document_count} docs • {kb.total_chunks} chunks
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      These KBs will be searched for relevant content when jobs match (Phase 2)
-                    </p>
-                  </div>
+                  ))
                 )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                      These KBs will be searched for relevant content when jobs match (Phase 2)
+              </p>
+            </div>
+          )}
 
                 {knowledgeBases.length === 0 && !loadingKBs && (
                   <p className="text-sm text-muted-foreground">

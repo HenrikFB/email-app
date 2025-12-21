@@ -324,19 +324,19 @@ export default function ResultsPage() {
             AI Search
           </Button>
           
-          {selectedEmailIds.length > 0 && (
+        {selectedEmailIds.length > 0 && (
             <>
               <Button onClick={() => setShowSaveModal(true)} variant="outline" size="sm">
                 <Save className="mr-1 h-4 w-4" />
                 Save ({selectedEmailIds.length})
-              </Button>
+            </Button>
               <Button onClick={() => openSearchModal()} size="sm">
                 <Search className="mr-1 h-4 w-4" />
                 Similar ({selectedEmailIds.length})
-              </Button>
+            </Button>
             </>
           )}
-        </div>
+          </div>
       </div>
 
       {/* Filters */}
@@ -370,33 +370,33 @@ export default function ResultsPage() {
 
       {/* Main Content with Split Panel */}
       <div className="flex-1 overflow-hidden">
-        {sortedEmails.length === 0 ? (
+      {sortedEmails.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-muted-foreground">No emails match the selected filter.</p>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground">No emails match the selected filter.</p>
+          </CardContent>
+        </Card>
           </div>
-        ) : (
+      ) : (
           <ResizablePanelGroup orientation="horizontal" className="h-full">
             {/* Left Panel - Results List */}
             <ResizablePanel defaultSize={showPreviewPanel ? 55 : 100} minSize={35}>
               <div className="h-full overflow-auto p-4">
                 {/* Select All */}
                 <div className="flex items-center gap-2 pb-3 sticky top-0 bg-background z-10">
-                  <Checkbox
-                    id="select-all"
-                    checked={selectedEmailIds.length === sortedEmails.length && sortedEmails.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                    Select all ({sortedEmails.length})
-                  </label>
-                </div>
+            <Checkbox
+              id="select-all"
+              checked={selectedEmailIds.length === sortedEmails.length && sortedEmails.length > 0}
+              onCheckedChange={toggleSelectAll}
+            />
+            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+              Select all ({sortedEmails.length})
+            </label>
+          </div>
 
                 {/* Results */}
-                <div className="space-y-4">
+          <div className="space-y-4">
                   {sortedEmails.map((email) => {
                     const emailData = email as { id: string }
                     return (
@@ -408,12 +408,12 @@ export default function ResultsPage() {
                             : ''
                         }`}
                       >
-                        <Checkbox
+                <Checkbox
                           checked={selectedEmailIds.includes(emailData.id)}
                           onCheckedChange={() => toggleEmailSelection(emailData.id)}
-                          className="mt-6"
-                        />
-                        <div className="flex-1">
+                  className="mt-6"
+                />
+                <div className="flex-1">
                           <ResultCard 
                             result={email as Parameters<typeof ResultCard>[0]['result']} 
                             onSourceSearch={openSearchModal}
@@ -443,10 +443,10 @@ export default function ResultsPage() {
                       onBackToEmail={() => setSelectedJob(null)}
                       onOpenDebug={() => setShowDebugModal(true)}
                     />
-                  </div>
+          </div>
                 </ResizablePanel>
-              </>
-            )}
+        </>
+      )}
           </ResizablePanelGroup>
         )}
       </div>

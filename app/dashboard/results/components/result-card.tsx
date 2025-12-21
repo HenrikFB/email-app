@@ -792,8 +792,8 @@ export default function ResultCard({ result, onSourceSearch, onEmailClick, onJob
                             <div>
                               <p className="font-medium text-gray-700">{position}</p>
                               <p className="text-xs text-gray-500">at {company}</p>
-                            </div>
                               </div>
+                          </div>
                           <div className="flex flex-col items-end gap-1">
                           <Badge 
                             variant="outline" 
@@ -820,7 +820,7 @@ export default function ResultCard({ result, onSourceSearch, onEmailClick, onJob
                           )}
                           {technologies && technologies.length > 0 && (
                             <span>🛠️ {technologies.slice(0, 3).join(', ')}{technologies.length > 3 ? '...' : ''}</span>
-                          )}
+                                )}
                         </div>
 
                         {/* Re-evaluation Rejection Reason - Prominent */}

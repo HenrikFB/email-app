@@ -274,25 +274,25 @@ export default function EmailBrowserPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-4">
-              <div className="flex-1">
-                <Label htmlFor="agentConfig">Agent Configuration</Label>
-                <Select value={selectedConfig} onValueChange={setSelectedConfig}>
-                  <SelectTrigger id="agentConfig">
-                    <SelectValue placeholder="Select configuration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agentConfigs.map((config) => (
-                      <SelectItem key={config.id} value={config.id}>
-                        {config.name || config.email_address}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button onClick={handleAnalyzeSelected} disabled={analyzing || !selectedConfig}>
-                  {analyzing ? 'Analyzing...' : 'Analyze Selected'}
-                </Button>
+            <div className="flex-1">
+              <Label htmlFor="agentConfig">Agent Configuration</Label>
+              <Select value={selectedConfig} onValueChange={setSelectedConfig}>
+                <SelectTrigger id="agentConfig">
+                  <SelectValue placeholder="Select configuration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {agentConfigs.map((config) => (
+                    <SelectItem key={config.id} value={config.id}>
+                      {config.name || config.email_address}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button onClick={handleAnalyzeSelected} disabled={analyzing || !selectedConfig}>
+                {analyzing ? 'Analyzing...' : 'Analyze Selected'}
+              </Button>
               </div>
             </div>
             
