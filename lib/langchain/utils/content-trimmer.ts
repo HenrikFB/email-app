@@ -16,17 +16,18 @@
 // ============================================
 
 export const CONTENT_LIMITS = {
-  // Per-extraction limits
-  MAX_CONTENT_LENGTH: 8000,        // Max chars per extracted page
-  KEEP_START_CHARS: 4000,          // Chars to keep from beginning
-  KEEP_END_CHARS: 2000,            // Chars to keep from end
+  // Per-extraction limits - REDUCED to prevent context overflow
+  // Each extraction adds ~tokens to context, accumulates across iterations
+  MAX_CONTENT_LENGTH: 5000,        // Max chars per extracted page (was 8000)
+  KEEP_START_CHARS: 3000,          // Chars to keep from beginning (was 4000)
+  KEEP_END_CHARS: 1500,            // Chars to keep from end (was 2000)
   
   // Context limits
-  MAX_CONTEXT_TOKENS: 100000,      // When to start trimming (128k - buffer)
+  MAX_CONTEXT_TOKENS: 80000,       // When to start trimming (give more buffer)
   CHARS_PER_TOKEN: 4,              // Rough estimate: 4 chars ≈ 1 token
   
   // Tool result management
-  KEEP_RECENT_TOOL_RESULTS: 3,     // Always keep last N tool results
+  KEEP_RECENT_TOOL_RESULTS: 2,     // Always keep last N tool results (was 3)
 } as const
 
 // ============================================

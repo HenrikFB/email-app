@@ -14,3 +14,12 @@ export {
   truncateJobDescription,
   trimToolMessages,
 } from './content-trimmer'
+
+// Email splitting utilities
+export {
+  splitEmailIntoChunks,
+  needsBatchedProcessing,
+  detectEmailSource,
+  estimateJobCount,
+} from './email-splitter'
+export type { JobChunk, EmailSplitResult, EmailSource } from './email-splitter'

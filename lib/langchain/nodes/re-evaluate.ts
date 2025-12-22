@@ -89,7 +89,8 @@ What matters is the JOB ROLE and EXPERIENCE LEVEL.
 ### Step 1: IS THIS AN IT/SOFTWARE/SECURITY JOB?
 <thinking>
 - Does this involve coding, software, IT, security, compliance, or development?
-- Types that ARE valid: Software, DevOps, RPA, Cloud, Web, Mobile, IT-udvikler
+- Types that ARE VALID: Software, DevOps, RPA, Cloud, Web, Mobile, IT-udvikler
+- ALSO VALID: IT-konsulent, Proceskonsulent, Digitaliseringskonsulent, Teknologikonsulent
 - ALSO VALID: IT Security, Cybersecurity, Compliance, NIS2, GDPR, ISO27001, Risk Management
 - Types that are NOT valid: PLC/SCADA, Hardware, Embedded firmware, Mechanical
 - Types that are NOT valid: BI Developer, Data Engineer (user doesn't want these)
@@ -134,18 +135,25 @@ ${config.extractionFields}
 - "IT-udvikler" = IT developer, "softwareudvikler" = software developer
 - "automatisering" = automation, "RPA" = robotic process automation
 
+## 🛑 BEFORE YOU DECIDE - VERIFICATION CHECKLIST
+Ask yourself:
+1. Did I READ the full job description, not just skim?
+2. Did I find ANY mention of years of experience? Quote it exactly.
+3. Is the job TYPE correct (software/IT, not PLC/hardware)?
+4. Am I rejecting because of the COMPANY domain? (DON'T - reject only for JOB ROLE!)
+
 ## OUTPUT FORMAT
 Respond with a JSON object:
 \`\`\`json
 {
   "stillMatches": true/false,
   "confidence": 0.0-1.0,
-  "reasoning": "Brief explanation of your decision",
+  "reasoning": "Brief explanation - INCLUDE any experience requirement you found, quoted exactly",
   "changedReason": "ONLY if rejecting - e.g. 'Requires 5+ years experience' or 'PLC programming role'",
   "extractedFields": {
     "deadline": "extracted deadline or null",
     "experience_level": "junior/mid/senior/lead/not specified",
-    "experience_years": "X-Y years or X+ years or null (EXTRACT THIS CAREFULLY!)",
+    "experience_years": "X-Y years or X+ years or null (EXTRACT THIS CAREFULLY - QUOTE FROM TEXT!)",
     "technologies": ["required", "technologies"],
     "nice_to_have_technologies": ["optional", "technologies"],
     "competencies": ["soft", "skills"],
@@ -155,6 +163,9 @@ Respond with a JSON object:
   }
 }
 \`\`\`
+
+## 💡 REASONING TIP
+When in doubt, INCLUDE the job with lower confidence. The user prefers seeing borderline jobs rather than missing good opportunities. Only REJECT for clear disqualifiers (5+ years, PLC, embedded).
 
 REMEMBER: 
 - 5+ years experience = REJECT
@@ -260,11 +271,22 @@ Then provide your final decision as JSON.`
     const jsonStr = jsonMatch[1] || jsonMatch[0]
     const parsed = JSON.parse(jsonStr)
 
+    // Ensure confidence is a valid number between 0 and 1
+    let newConfidence = parsed.confidence ?? job.confidence
+    if (typeof newConfidence !== 'number' || isNaN(newConfidence)) {
+      newConfidence = job.confidence
+    }
+    // Normalize confidence to 0-1 range (LLM might return 0-100)
+    if (newConfidence > 1) {
+      newConfidence = newConfidence / 100
+    }
+    newConfidence = Math.max(0, Math.min(1, newConfidence))
+
     return {
       jobId: job.id,
       originalMatch: job.matched,
       newMatch: parsed.stillMatches ?? job.matched,
-      newConfidence: parsed.confidence ?? job.confidence,
+      newConfidence,
       newReasoning: parsed.reasoning || job.matchReasoning,
       changedReason: parsed.changedReason || undefined,
       extractedFields: parsed.extractedFields || {},

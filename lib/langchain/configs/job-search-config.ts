@@ -39,8 +39,11 @@ I prefer false positives over missing opportunities - I can filter manually.
 
 ### IT Development & Consulting
 - IT-udvikler / IT-Developer / IT Developer
-- IT-konsulent / IT Consultant (if development-focused)
+- IT-konsulent / IT Consultant (infrastructure, development, support - all are fine!)
 - Systemudvikler / Systems Developer
+- Proceskonsulent (process automation, RPA, workflow automation)
+- Digitaliseringskonsulent (digitalization consultant)
+- Teknologikonsulent / Technology Consultant / Teknologisk rådgiver
 
 ### Mobile & Native Development
 - Android Developer / Android-udvikler
@@ -256,7 +259,8 @@ I can quickly scan and filter myself.
     ],
     
     // Max iterations for research agent (reduced to prevent context overflow)
-    maxIterations: 8,
+    // Each iteration adds ~5K tokens, so 6 iterations = ~30K tokens max
+    maxIterations: 6,
     
     // Max concurrent research jobs
     maxConcurrent: 3,

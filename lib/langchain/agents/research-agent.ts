@@ -409,7 +409,20 @@ export async function researchJob(
     return researchResult
 
   } catch (error) {
-    console.error(`❌ Research agent error (after ${((Date.now() - startTime) / 1000).toFixed(2)}s):`, error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const processingTime = (Date.now() - startTime) / 1000
+    
+    // Check for context length errors specifically
+    const isContextError = errorMessage.includes('context length') || 
+                           errorMessage.includes('maximum context') ||
+                           errorMessage.includes('token')
+    
+    if (isContextError) {
+      console.warn(`⚠️ Context overflow for ${job.company} after ${processingTime.toFixed(2)}s`)
+      console.warn(`   This job accumulated too much content - consider simplifying research`)
+    } else {
+      console.error(`❌ Research agent error (after ${processingTime.toFixed(2)}s):`, error)
+    }
     
     return {
       jobId: job.id,
@@ -418,7 +431,9 @@ export async function researchJob(
       found: false,
       sourcesSearched: [],
       extractedData: {},
-      reasoning: `Research failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      reasoning: isContextError 
+        ? `Research stopped: context size exceeded (job may have complex/large content)`
+        : `Research failed: ${errorMessage}`,
       iterations: 0,
     }
   }
@@ -537,10 +552,13 @@ function parseAgentResponse(
 
   // Check for success indicators
   const contentLower = finalContent.toLowerCase()
-  found = (contentLower.includes('found') || contentLower.includes('status**: found')) && 
+  const llmSaysFound = (contentLower.includes('found') || contentLower.includes('status**: found')) && 
           !contentLower.includes('not found') &&
           !contentLower.includes("couldn't find") &&
           !contentLower.includes("could not find")
+  
+  // Initial found status based on LLM response
+  found = llmSaysFound
 
   // Try to extract URL
   const urlMatch = finalContent.match(/https?:\/\/[^\s\)"'<>]+/)
@@ -615,6 +633,48 @@ function parseAgentResponse(
     }
   }
 
+  // ============================================
+  // CRITICAL: Company Name Validation
+  // ============================================
+  // The LLM may report "found" for a page that doesn't actually contain
+  // the target company. We enforce stricter validation here.
+  
+  let validationFailed = false
+  let validationReason = ''
+  
+  if (found && jobDescription) {
+    const descriptionLower = jobDescription.toLowerCase()
+    const companyLower = job.company.toLowerCase()
+    
+    // Get company name variants (handle A/S, ApS, etc.)
+    const companyVariants = [
+      companyLower,
+      companyLower.replace(/\s*(a\/s|aps|i\/s|k\/s|gmbh|inc|ltd|llc|as|a\.s\.)$/i, '').trim(),
+      companyLower.replace(/\s+/g, ''), // No spaces
+      companyLower.split(' ')[0], // First word only (for long company names)
+    ].filter(v => v.length > 2)
+    
+    // Check if ANY company variant appears in the description
+    const companyFound = companyVariants.some(variant => 
+      descriptionLower.includes(variant) ||
+      finalContent.toLowerCase().includes(variant) // Also check the LLM response
+    )
+    
+    if (!companyFound) {
+      // Double-check: Look for the company in a more flexible way
+      const companyWords = job.company.toLowerCase().split(/[\s\-&]+/).filter(w => w.length > 3)
+      const partialMatch = companyWords.length > 0 && 
+        companyWords.some(word => descriptionLower.includes(word))
+      
+      if (!partialMatch) {
+        validationFailed = true
+        validationReason = `Company name "${job.company}" not found in extracted content`
+        found = false
+        console.warn(`   ⚠️ VALIDATION FAILED: ${validationReason}`)
+      }
+    }
+  }
+
   return {
     jobId: job.id,
     company: job.company,
@@ -639,8 +699,12 @@ function parseAgentResponse(
       deadline,
       found,
       primarySource: primarySourceUrl,
+      validationFailed,
+      validationReason: validationReason || undefined,
     },
-    reasoning,
+    reasoning: validationFailed 
+      ? `[VALIDATION FAILED: ${validationReason}] ${reasoning}`
+      : reasoning,
     iterations,
   }
 }
