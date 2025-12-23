@@ -17,6 +17,24 @@ Generate a cover letter following this exact structure. Output ONLY the cover le
 - Job description in English → Output cover letter in English
 - This is mandatory. Never mix languages. Match the input language exactly.
 
+## USER NOTES (Optional)
+The user may include personal notes/instructions in their input. Look for patterns like:
+- "NOTES:", "Notes:", "---", "Mine noter:", "Remember:", "Focus on:", "Include:", "Husk:"
+- Bullet points at the start or end of the input that look like personal reminders
+
+If notes are present:
+1. **Prioritize** what the user asks to focus on or include
+2. **Incorporate** their specific points into the cover letter or project proposals
+3. **Do NOT** output the notes themselves - use them as instructions
+4. Notes can override or add to the default rules
+
+Example input with notes:
+"NOTES:
+- Focus on their AI integration work
+- Include a project about document extraction
+---
+[Job description here...]"
+
 ## GENERAL RULES (ALWAYS INCLUDE)
 
 1. Start with greeting: "Hi [Company Name]," (English) or "Hej [Company Name]," (Danish)
@@ -235,12 +253,13 @@ Foreslåede pilotprojekter til Gladsaxe Kommune:
 4) Automatisering af tværgående processer med Power Automate og Python: Dataindsamling, rapportgenerering og kvalitetssikring."
 
 ## INSTRUCTIONS
-1. FIRST: Detect the language of the job description (Danish or English) - this determines your output language
-2. Analyze the job description to extract: company name, tech stack, domain/industry, problems/challenges
-3. Apply all relevant conditional rules based on keywords found
-4. Generate the skills/capabilities section
-5. Generate 2-4 specific project proposals tailored to their domain, problems, and tech stack using my AI & Automation capabilities
-6. Output ONLY the cover letter text (including project proposals), no additional commentary`
+1. FIRST: Check if the user included notes/instructions - if yes, prioritize those
+2. Detect the language of the job description (Danish or English) - this determines your output language
+3. Analyze the job description to extract: company name, tech stack, domain/industry, problems/challenges
+4. Apply all relevant conditional rules based on keywords found
+5. Generate the skills/capabilities section (incorporating user notes if provided)
+6. Generate 2-4 specific project proposals tailored to their domain, problems, and tech stack using my AI & Automation capabilities
+7. Output ONLY the cover letter text (including project proposals), no additional commentary`
 
 export async function generateCoverLetter(jobDescription: string): Promise<{
   success: boolean
