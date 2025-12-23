@@ -87,53 +87,160 @@ Include:
 -Retry policy
 -Små scripts til API integrationer og automatiseringer"
 
+### RPA/Automation (if job mentions: RPA, automation, Power Automate, workflow, process, automatisering, robot, UiPath)
+Include:
+"RPA og procesautomatisering:
+-Power Automate Desktop/Cloud workflows
+-Automatisering af gentagne arbejdsopgaver
+-Integration mellem systemer via API, webhooks, og scheduled jobs"
+
+---
+
+## PROJECT PROPOSALS SECTION (ALWAYS INCLUDE AT THE END)
+
+After the skills/capabilities section above, ALWAYS add a "Proposed Projects" section with 2-3 specific project ideas.
+
+### How to Generate Project Proposals
+
+Analyze the job description to identify:
+1. **Company domain**: What industry/sector (sustainability, municipality, healthcare, finance, etc.)
+2. **Their products/services**: What do they build or provide?
+3. **Problems/challenges**: What are they trying to solve?
+4. **Tech stack**: What technologies do they use?
+
+Then combine these with my AI & Automation capabilities to generate specific, tailored project ideas:
+
+**My AI & Automation Capabilities (use these as inspiration):**
+- AI and agent-based workflows: AI engineering, context/data handling, orchestration flows, and analysis execution
+- Business process automation with n8n or RPA
+- Document extraction: Azure AI, LlamaIndex/LandingAI (agentic extraction)
+- Conversion of unstructured data to structured data across formats: images, documents, spreadsheets, databases
+- Graph databases: optimization of semantic search and improved data understanding
+- Optimizing project ROI with protocols like MCP and Agent2Agent (A2A) to avoid duplicate work and promote modular development
+- LangGraph configuration for flexible, configurable agent systems
+
+### Project Proposal Format
+
+Section header:
+English: "Proposed pilot projects for [Company Name]:"
+Danish: "Foreslåede pilotprojekter til [Company Name]:"
+
+Format each project as:
+"[Project Name]: [Brief description of what it does and the value it provides]"
+
+Make projects:
+- Specific to their domain and problems
+- Use their tech stack where possible
+- Leverage AI/automation capabilities listed above
+- Achievable in a 4-week pilot
+
+### Project Proposal Examples by Domain
+
+**Municipality/Public Sector (AI, digitalization, automation):**
+- AI-understøttet risikovurdering og GDPR-analyse: Implementere et AI-modul der hjælper med at analysere risikovurderinger og foreslå forebyggende tiltag
+- Digital medarbejderassistent: Prototype på intern chatbot der besvarer spørgsmål om processer, GDPR og IT-politikker
+- Automatisering af sags- og bilagsflows i Power Automate Desktop/Cloud, inkl. validering, logning og automatisk arkivering
+
+**RPA/Automation roles:**
+- Genanvendelige RPA-skabeloner (login, fil-IO, e-mail, PDF/OCR, API) der forkorter udviklingstiden
+- AI-understøttet dokumentforståelse med Azure AI Document Intelligence til automatisk klassificering
+- Kommunal proof-of-concept for AI + RPA-samspil, hvor automatisering og AI sammen håndterer gentagne opgaver
+
+**Sustainability/ESG tech:**
+- Supplier OSINT Ingestion → ESG Signal Extraction: Auto-collect and parse supplier evidence into risks and positive actions
+- LLM Due Diligence Copilot: Generate supplier risk briefs with grounded citations
+- Document extraction pipeline using Azure AI/LandingAI for sustainability reports
+
+**Healthcare:**
+- Automatisk journalføring under konsultation med tale-til-tekst
+- Knowledge graph for semantic search across patient documentation
+- Compliance-sikret AI-løsning med lokale modeller og kryptering
+
 ## EXAMPLES
 
-### Example 1: Fullstack with Vue, C#, Azure
-Input tech: C#, JavaScript/TypeScript, Vue, GraphQL, Postgres, Azure, Python
+### Example 1: Sustainability Tech Startup (English)
+Domain: ESG/sustainability, supply chain due diligence
+Tech: Next.js 15, TypeScript, PostgreSQL, AI integrations
 
 Output:
-"Hi Klimate,
+"Hi Responsibly,
 
 I would also like to propose an independent 4-week pilot project – without requiring any resources from your side (internship during unemployment).
 
 Projects I can complete independently:
-Software development with C#/.NET, Vue.js, GraphQL, Postgres, cloud, infrastructure, and Python.
+Software development with Next.js 15, TypeScript, PostgreSQL, server actions, and serverless architectures.
 Functional programming for safety with many variables and factors
-Azure/AWS cloud features
+AI integrations and data pipeline development
 Designing or maintaining scalable software systems:
 -Make features generic
 -Interfaces, strategy, adapter, and factory pattern
 -Don't repeat yourself (DRY)
-Automate designs/project structure, DevOps, and CI/CD with code editor AI rules"
+Automate designs/project structure, DevOps, and CI/CD with code editor AI rules
 
-### Example 2: GIS/Geospatial with .NET (Danish)
+Proposed pilot projects for Responsibly:
+1) Supplier OSINT Ingestion → ESG Signal Extraction: Auto-collect and parse supplier evidence (websites, PDFs, registries) into risks, violations, and positive actions with citation-ready evidence store.
+2) LLM Due Diligence Copilot: Generate supplier risk briefs & scorecard drafts with grounded citations using document extraction (Azure AI, LandingAI) and semantic search.
+3) Unstructured → Structured pipeline: Convert sustainability reports across formats (PDFs, images, spreadsheets) to structured ESG data points."
+
+### Example 2: Municipality RPA/Automation (Danish)
+Domain: Kommune, digitalisering, RPA, Power Platform
+Tech: Power Automate, Python, PowerShell, API'er
+
 Output:
-"Hej Geodatastyrelsen,
+"Hej Lolland Kommune,
 
 Jeg vil også gerne foreslå et selvstændigt 4-ugers pilotprojekt – uden behov for ressourcer fra jeres side (ledigheds praktik).
 
 Projekter jeg kan lave selvstændigt:
-Softwareudvikling med .NET, SQL, og Frontend
-Data loading og fetching
-Funktionel programmering for sikkerhed ved mange variabler og faktorer
-Integrationer, API'er, og datamodeller:
--Adapter pattern og automatisere test i produktionen
--Retry policy
--Små scripts til API integrationer og automatiseringer
-Arkitektur: Interfaces, strategy, og factory patterns
-Automatisere test og dokumentation med AI
-IoT og cloud computing er datalogiske fag
-- og hardware er en del af min uddannelse
-GIS og SDKs (Se erfaring ved Dynatest in CV)
--https://architecture.arcgis.com/en/overview/introduction-to-arcgis/geospatial-ai.html"
+Softwareudvikling med Power Automate Desktop/Cloud, Python, PowerShell, og API-integrationer
+RPA og procesautomatisering:
+-Power Automate Desktop/Cloud workflows
+-Automatisering af gentagne arbejdsopgaver
+-Integration mellem systemer via API, webhooks, og scheduled jobs
+Design og vedligeholdelse af skalerbare softwaresystemer:
+-Gør features generiske
+-Interfaces, strategy, adapter, og factory patterns
+-Don't repeat yourself (DRY)
+Automatisere designs/projektstruktur, DevOps, og CI/CD med code editor AI rules
+
+Foreslåede pilotprojekter til Lolland Kommune:
+1) Automatisering af sags- og bilagsflows: Power Automate Desktop/Cloud workflow med validering, logning og automatisk arkivering i SharePoint.
+2) Genanvendelige RPA-skabeloner: Login, fil-IO, e-mail, PDF/OCR, API-komponenter der forkorter udviklingstiden og sikrer stabil drift på tværs af afdelinger.
+3) AI-understøttet dokumentforståelse: Azure AI Document Intelligence til automatisk klassificering og strukturering af bilag.
+4) AI + RPA proof-of-concept: Kombinere automatisering og LLM til håndtering af gentagne opgaver med Copilot-integrationer i M365."
+
+### Example 3: Municipality AI/Digitalization Consultant (Danish)
+Domain: Kommune, AI, digitalisering, ChatGPT/GladGPT
+Tech: Azure OpenAI, Power Platform, Python
+
+Output:
+"Hej Gladsaxe Kommune,
+
+Jeg vil også gerne foreslå et selvstændigt 4-ugers pilotprojekt – uden behov for ressourcer fra jeres side (ledigheds praktik).
+
+Projekter jeg kan lave selvstændigt:
+AI Engineering med Azure OpenAI, Power Platform, og Python
+Agent-baserede workflows: context/data handling, orchestration flows, og analyse execution
+Funktionel programmering koncepter for sikkerhed ved mange variabler og faktorer
+Design og vedligeholdelse af skalerbare softwaresystemer:
+-Gør features generiske
+-Interfaces, strategy, adapter, og factory patterns
+-Don't repeat yourself (DRY)
+Automatisere designs/projektstruktur, DevOps, og CI/CD med code editor AI rules
+
+Foreslåede pilotprojekter til Gladsaxe Kommune:
+1) Specialiserede AI-agenter som udbygning af GladGPT: Fx til borgerdialog, intern videnssøgning eller rådgivning på tværs af forvaltninger.
+2) RAG-integration med Azure OpenAI og lokale data: Så AI kan give kontekstsvar baseret på kommunens egne dokumenter.
+3) AI-prototypehub i Power Platform: Hvor nye idéer kan testes hurtigt sammen med medarbejdere.
+4) Automatisering af tværgående processer med Power Automate og Python: Dataindsamling, rapportgenerering og kvalitetssikring."
 
 ## INSTRUCTIONS
 1. FIRST: Detect the language of the job description (Danish or English) - this determines your output language
-2. Analyze the job description to extract the company name and tech stack
+2. Analyze the job description to extract: company name, tech stack, domain/industry, problems/challenges
 3. Apply all relevant conditional rules based on keywords found
-4. Generate a concise, professional cover letter in THE SAME LANGUAGE as the input
-5. Output ONLY the cover letter text, no additional commentary`
+4. Generate the skills/capabilities section
+5. Generate 2-4 specific project proposals tailored to their domain, problems, and tech stack using my AI & Automation capabilities
+6. Output ONLY the cover letter text (including project proposals), no additional commentary`
 
 export async function generateCoverLetter(jobDescription: string): Promise<{
   success: boolean
@@ -161,7 +268,7 @@ export async function generateCoverLetter(jobDescription: string): Promise<{
         },
       ],
       temperature: 0.7,
-      max_tokens: 1500,
+      max_tokens: 2500,
     })
 
     const coverLetter = response.choices[0]?.message?.content
