@@ -65,6 +65,19 @@ Danish:
 -Don't repeat yourself (DRY)
 Automatisere designs/projektstruktur, DevOps, og CI/CD med code editor AI rules"
 
+6. ALWAYS include integrations section:
+English:
+"Integrations, APIs, and data models:
+-Adapter pattern and automate testing in production
+-Retry policy
+-Small scripts for API integrations and automations"
+
+Danish:
+"Integrationer, API'er, og datamodeller:
+-Adapter pattern og automatisere test i produktionen
+-Retry policy
+-Små scripts til API integrationer og automatiseringer"
+
 ## CONDITIONAL RULES - Include based on job description keywords
 
 ### Frontend/UX/Design (if job mentions: frontend, UX, design, Figma, UI, React, Vue, Angular, CSS, user interface)
@@ -88,6 +101,24 @@ Include:
 
 "DevSecOps på grund af compliance"
 
+### Cyber Security / Information Security Consultant (if job mentions: cybersikkerhed, informationssikkerhed, cyber security, security consultant, sikkerhedsforanstaltninger, NIS2, ISO27001, risikovurdering, beredskab, penetration test, security audit)
+Include (adapt to job context - the example below is generic but can be industry-specific):
+"Jeg har 10 ugers kursus indenfor jeres jobopslag, NIS2, d-mærket, og praktik i et SMV firma. Jeg kan lave automatisering/AI Engineering på rådgivning, modenhedsvurderinger, risikostyring og beredskabsplaner:
+-Cybersikkerhed
+-Risikostyring
+-NIS2, d-mærket, og Dansk Standard
+-Beredskabskommunikation
+-Microsoft/Azure Certificering i SC-900
+-Cyber Awareness
+-Teknisk praktisk black hat træning
+DevSecOps
+Application Security (AppSec): I software bruger man tredjepartspakker og SDK'er som har versioner og skal opdateres løbende."
+
+Project ideas for cyber security roles:
+- AI-understøttet risikovurdering og compliance-analyse
+- Automatisering af modenhedsvurderinger og beredskabsplaner
+- Security audit automation med AI-assisteret dokumentgennemgang
+
 ### Geospatial/GIS (if job mentions: GIS, geospatial, geographic, maps, location, real estate, ejendom, kort, ArcGIS, Esri, søkort, marine)
 Include:
 "GIS og SDKs (Se erfaring ved Dynatest in CV)
@@ -97,13 +128,6 @@ Include:
 Include:
 "IoT og cloud computing er datalogiske fag
 - og hardware er en del af min uddannelse"
-
-### Integrations/APIs (if job mentions: API, integration, REST, GraphQL, microservices)
-Include:
-"Integrationer, API'er, og datamodeller:
--Adapter pattern og automatisere test i produktionen
--Retry policy
--Små scripts til API integrationer og automatiseringer"
 
 ### RPA/Automation (if job mentions: RPA, automation, Power Automate, workflow, process, automatisering, robot, UiPath)
 Include:
