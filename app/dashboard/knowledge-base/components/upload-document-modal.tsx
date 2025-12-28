@@ -50,7 +50,7 @@ export function UploadDocumentModal({
   // Configuration state
   const [autoSave, setAutoSave] = useState(autoSaveUploads)
   const [showConfig, setShowConfig] = useState(false)
-  const [pageRangeMode, setPageRangeMode] = useState<'all' | 'range' | 'first' | 'last'>('all')
+  const [pageRangeMode, setPageRangeMode] = useState<'all' | 'range' | 'first' | 'last' | 'all_except_last'>('all')
   const [pageRangeValues, setPageRangeValues] = useState({
     start: '',
     end: '',
@@ -75,6 +75,11 @@ export function UploadDocumentModal({
           const count = parseInt(pageRangeValues.count)
           pageRange = { start: -count }
         }
+        break
+      case 'all_except_last':
+        // Use start: 0 and negative end to indicate "skip last X pages"
+        const skipCount = pageRangeValues.count ? parseInt(pageRangeValues.count) : 1
+        pageRange = { start: 0, end: -skipCount }
         break
       case 'range':
         if (pageRangeValues.start || pageRangeValues.end) {
@@ -240,13 +245,19 @@ export function UploadDocumentModal({
                 {/* Mode Selector */}
                 <RadioGroup 
                   value={pageRangeMode} 
-                  onValueChange={(v) => setPageRangeMode(v as 'all' | 'range' | 'first' | 'last')}
+                  onValueChange={(v) => setPageRangeMode(v as 'all' | 'range' | 'first' | 'last' | 'all_except_last')}
                   disabled={isProcessing}
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="all" id="all" />
                     <Label htmlFor="all" className="font-normal cursor-pointer">
                       All pages
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="all_except_last" id="all_except_last" />
+                    <Label htmlFor="all_except_last" className="font-normal cursor-pointer">
+                      All pages except last
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -278,6 +289,22 @@ export function UploadDocumentModal({
                       placeholder="5"
                       min="1"
                       value={pageRangeValues.count}
+                      onChange={(e) => setPageRangeValues({ ...pageRangeValues, count: e.target.value })}
+                      className="w-24"
+                      disabled={isProcessing}
+                    />
+                    <Label className="text-sm text-muted-foreground">pages</Label>
+                  </div>
+                )}
+
+                {pageRangeMode === 'all_except_last' && (
+                  <div className="flex items-center gap-2 pl-6 animate-in fade-in-50 duration-200">
+                    <Label className="text-sm text-muted-foreground whitespace-nowrap">Skip last</Label>
+                    <Input
+                      type="number"
+                      placeholder="2"
+                      min="1"
+                      value={pageRangeValues.count || '1'}
                       onChange={(e) => setPageRangeValues({ ...pageRangeValues, count: e.target.value })}
                       className="w-24"
                       disabled={isProcessing}

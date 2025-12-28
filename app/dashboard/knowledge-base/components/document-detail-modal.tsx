@@ -44,7 +44,7 @@ export function DocumentDetailModal({
   const [notes, setNotes] = useState('')
   
   // Reprocess configuration state
-  const [pageRangeMode, setPageRangeMode] = useState<'all' | 'range' | 'first' | 'last'>('all')
+  const [pageRangeMode, setPageRangeMode] = useState<'all' | 'range' | 'first' | 'last' | 'all_except_last'>('all')
   const [pageRangeValues, setPageRangeValues] = useState({
     start: '',
     end: '',
@@ -67,6 +67,11 @@ export function DocumentDetailModal({
           const count = parseInt(pageRangeValues.count)
           pageRange = { start: -count }
         }
+        break
+      case 'all_except_last':
+        // Use start: 0 and negative end to indicate "skip last X pages"
+        const skipCount = pageRangeValues.count ? parseInt(pageRangeValues.count) : 1
+        pageRange = { start: 0, end: -skipCount }
         break
       case 'range':
         if (pageRangeValues.start || pageRangeValues.end) {
@@ -100,7 +105,15 @@ export function DocumentDetailModal({
         const config = document.processing_config as ProcessingConfig
         if (config.pageRange) {
           const { start, end } = config.pageRange
-          if (start && start < 0) {
+          if (start === 0 && end && end < 0) {
+            // All pages except last X
+            setPageRangeMode('all_except_last')
+            setPageRangeValues({ start: '', end: '', count: Math.abs(end).toString() })
+          } else if (start === 0) {
+            // Legacy: All pages except last (default to 1)
+            setPageRangeMode('all_except_last')
+            setPageRangeValues({ start: '', end: '', count: '1' })
+          } else if (start && start < 0) {
             // Last X pages
             setPageRangeMode('last')
             setPageRangeValues({ start: '', end: '', count: Math.abs(start).toString() })
@@ -298,13 +311,19 @@ export function DocumentDetailModal({
                   {/* Mode Selector */}
                   <RadioGroup 
                     value={pageRangeMode} 
-                    onValueChange={(v) => setPageRangeMode(v as 'all' | 'range' | 'first' | 'last')}
+                    onValueChange={(v) => setPageRangeMode(v as 'all' | 'range' | 'first' | 'last' | 'all_except_last')}
                     disabled={isReprocessing}
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="all" id="reprocess-all" />
                       <Label htmlFor="reprocess-all" className="font-normal cursor-pointer">
                         All pages
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="all_except_last" id="reprocess-all-except-last" />
+                      <Label htmlFor="reprocess-all-except-last" className="font-normal cursor-pointer">
+                        All pages except last
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -336,6 +355,22 @@ export function DocumentDetailModal({
                         placeholder="5"
                         min="1"
                         value={pageRangeValues.count}
+                        onChange={(e) => setPageRangeValues({ ...pageRangeValues, count: e.target.value })}
+                        className="w-24"
+                        disabled={isReprocessing}
+                      />
+                      <Label className="text-sm text-muted-foreground">pages</Label>
+                    </div>
+                  )}
+
+                  {pageRangeMode === 'all_except_last' && (
+                    <div className="flex items-center gap-2 pl-6 animate-in fade-in-50 duration-200">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">Skip last</Label>
+                      <Input
+                        type="number"
+                        placeholder="2"
+                        min="1"
+                        value={pageRangeValues.count || '1'}
                         onChange={(e) => setPageRangeValues({ ...pageRangeValues, count: e.target.value })}
                         className="w-24"
                         disabled={isReprocessing}
